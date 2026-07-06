@@ -1,0 +1,43 @@
+# Dev overlay — hot reload, source mounts, dev settings, exposed ports.
+# Usage: make dev-up   (= docker compose -f docker-compose.yml -f docker-compose.dev.yml up)
+
+x-dev-common: &dev-common
+  build:
+    context: .
+    args:
+      DEV: "true"
+  environment:
+    DEBUG: "True"
+    DJANGO_SETTINGS_MODULE: capaggregator.config.settings.dev
+  volumes:
+    - ./src:/app/src
+    - ./deploy/mosquitto:/mosquitto-config
+    - ./docker-data/static:/app/staticfiles
+    - ./docker-data/media:/app/media
+
+services:
+  capagg-app:
+    <<: *dev-common
+    command: django-dev
+    ports:
+      - "${APP_PORT:-8000}:8000"
+
+  capagg-worker-default:
+    <<: *dev-common
+    command: celery-default-worker-dev
+
+  capagg-worker-ingestion:
+    <<: *dev-common
+    command: celery-ingestion-worker-dev
+
+  capagg-beat:
+    <<: *dev-common
+    command: celery-beat
+
+  capagg-mqtt-consumer:
+    <<: *dev-common
+    command: mqtt-consumer
+
+  capagg-martin:
+    ports:
+      - "${MARTIN_PORT:-3000}:3000"

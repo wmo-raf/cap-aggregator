@@ -1,0 +1,12 @@
+listen_addresses: "0.0.0.0:3000"
+
+route_prefix: /martin
+
+postgres:
+  connection_string: "${DATABASE_URL}"
+  auto_publish: false  # only expose explicitly listed sources
+
+  functions:
+    alerts:
+      schema: public
+      function: capagg_alerts_tile
