@@ -1,0 +1,15 @@
+{% extends "wagtailadmin/generic/inspect.html" %}
+{% load i18n %}
+{% block main_content %}
+    {{ block.super }}
+    <div class="nice-padding">
+        <form action="{% url 'capagg_ingestion_quarantine_dismiss' object.pk %}" method="post" style="display:inline">
+            {% csrf_token %}
+            <button type="submit" class="button button-secondary">{% trans "Dismiss" %}</button>
+        </form>
+        <form action="{% url 'capagg_ingestion_quarantine_revalidate' %}" method="post" style="display:inline">
+            {% csrf_token %}
+            <button type="submit" class="button">{% trans "Re-run validation (all pending)" %}</button>
+        </form>
+    </div>
+{% endblock %}
