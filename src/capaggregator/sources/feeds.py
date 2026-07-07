@@ -1,37 +1,25 @@
-"""Feed helpers: type autodiscovery + entry iteration for CAP RSS/ATOM feeds."""
+"""Feed helpers: entry iteration + type detection for CAP RSS/ATOM feeds."""
 
 import logging
 
 import requests
-from lxml import etree
 
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 15
 USER_AGENT = "cap-aggregator/0.1 (+feed-poller)"
 
-ATOM_NS = "http://www.w3.org/2005/Atom"
 CAP_MIME_TYPES = ("application/cap+xml", "application/xml", "text/xml")
 
 
-def autodiscover_feed_type(url: str) -> str | None:
-    """Fetch the URL and sniff the root element: <rss> → 'rss', <feed> → 'atom'.
-    Returns None if unreachable or not a recognizable feed."""
-    try:
-        resp = requests.get(url, timeout=REQUEST_TIMEOUT, headers={"User-Agent": USER_AGENT})
-        resp.raise_for_status()
-        root = etree.fromstring(resp.content)
-    except Exception as ex:
-        logger.warning("Feed autodiscovery failed for %s: %s", url, ex)
-        return None
-
-    tag = etree.QName(root).localname.lower()
-    if tag == "rss":
-        return "rss"
-    if tag == "feed" and etree.QName(root).namespace == ATOM_NS:
+def _detected_feed_type(parsed) -> str:
+    """Map feedparser's version ('rss20', 'atom10', …) to 'rss'/'atom' for display."""
+    version = (getattr(parsed, "version", "") or "").lower()
+    if version.startswith("atom"):
         return "atom"
-    logger.warning("Feed autodiscovery: unrecognized root <%s> at %s", tag, url)
-    return None
+    if version.startswith("rss") or version.startswith("rdf"):
+        return "rss"
+    return ""
 
 
 def fetch_feed(authority) -> tuple[list[dict], bool]:
@@ -54,6 +42,7 @@ def fetch_feed(authority) -> tuple[list[dict], bool]:
     authority.feed_last_modified = resp.headers.get("Last-Modified", "")
 
     parsed = feedparser.parse(resp.content)
+    authority.feed_type_detected = _detected_feed_type(parsed)
     entries = []
     for entry in parsed.entries:
         entries.append({

@@ -55,8 +55,9 @@ class SourceAuthority(models.Model):
 
     # MQTT (primary transport)
     mqtt_username = models.CharField(max_length=100, blank=True, editable=False)
-    mqtt_password_hash = models.CharField(max_length=255, blank=True, editable=False,
-                                          help_text=_("mosquitto_passwd-compatible hash"))
+    mqtt_password_hash = models.CharField(
+        max_length=255, blank=True, editable=False, help_text=_("mosquitto_passwd-compatible hash")
+    )
     mqtt_topic = models.CharField(max_length=255, blank=True, editable=False)
 
     # Fallback transports
@@ -67,23 +68,23 @@ class SourceAuthority(models.Model):
     # (reconcile) interval; when push transports go quiet it tightens to the
     # fast interval. Alerts that arrive ONLY via poll expose broken push
     # transports on the health dashboard (see ingestion.DeliveryReceipt).
-    FEED_TYPES = (
-        ("auto", _("Autodiscover")),
-        ("rss", _("RSS 2.0")),
-        ("atom", _("ATOM")),
+    feed_url = models.URLField(
+        verbose_name=_("CAP feed URL (RSS/ATOM)"), help_text=_("Required. e.g. https://<composer>/api/cap/rss.xml")
     )
-    feed_url = models.URLField(verbose_name=_("CAP feed URL (RSS/ATOM)"),
-                               help_text=_("Required. e.g. https://<composer>/api/cap/rss.xml"))
-    feed_type = models.CharField(max_length=5, choices=FEED_TYPES, default="auto",
-                                 help_text=_("Leave on Autodiscover to sniff the feed root element"))
-    feed_type_detected = models.CharField(max_length=5, blank=True, editable=False,
-                                          help_text=_("Resolved type when feed_type is 'auto'"))
+    feed_type_detected = models.CharField(
+        max_length=5, blank=True, editable=False,
+        help_text=_("RSS/ATOM, sniffed from the feed during the first successful poll (display only)"),
+    )
     feed_poll_interval_minutes = models.PositiveIntegerField(
-        default=5, verbose_name=_("Fast poll interval (min)"),
-        help_text=_("Used when no push transport is configured or push has gone quiet"))
+        default=5,
+        verbose_name=_("Fast poll interval (min)"),
+        help_text=_("Used when no push transport is configured or push has gone quiet"),
+    )
     feed_reconcile_interval_minutes = models.PositiveIntegerField(
-        default=30, verbose_name=_("Reconcile poll interval (min)"),
-        help_text=_("Slow sweep used while MQTT/webhook are healthy"))
+        default=30,
+        verbose_name=_("Reconcile poll interval (min)"),
+        help_text=_("Slow sweep used while MQTT/webhook are healthy"),
+    )
     # Conditional-GET state
     feed_etag = models.CharField(max_length=255, blank=True, editable=False)
     feed_last_modified = models.CharField(max_length=100, blank=True, editable=False)
@@ -94,13 +95,21 @@ class SourceAuthority(models.Model):
 
     panels = [
         MultiFieldPanel(
-            [FieldPanel("name"), FieldPanel("country"), FieldPanel("sender_values"),
-             FieldPanel("contact_email"), FieldPanel("active")],
+            [
+                FieldPanel("name"),
+                FieldPanel("country"),
+                FieldPanel("sender_values"),
+                FieldPanel("contact_email"),
+                FieldPanel("active"),
+            ],
             heading=_("Authority"),
         ),
         MultiFieldPanel(
-            [FieldPanel("feed_url"), FieldPanel("feed_type"),
-             FieldPanel("feed_poll_interval_minutes"), FieldPanel("feed_reconcile_interval_minutes")],
+            [
+                FieldPanel("feed_url"),
+                FieldPanel("feed_poll_interval_minutes"),
+                FieldPanel("feed_reconcile_interval_minutes"),
+            ],
             heading=_("CAP feed (required)"),
         ),
         MultiFieldPanel(
@@ -118,23 +127,12 @@ class SourceAuthority(models.Model):
         return f"{self.name} ({self.country.upper()})"
 
     def clean(self):
+        # Local-only validation: no network I/O, so saving cannot hang or fail on
+        # a slow/unreachable feed. Feed type is sniffed later, during polling.
         if not self.sender_values:
             raise ValidationError({"sender_values": _("At least one CAP sender value is required.")})
         if not self.feed_url:
             raise ValidationError({"feed_url": _("A CAP RSS/ATOM feed URL is required for every authority.")})
-        if self.feed_type == "auto" and self.feed_url:
-            from .feeds import autodiscover_feed_type
-
-            detected = autodiscover_feed_type(self.feed_url)
-            if detected is None:
-                raise ValidationError({"feed_url": _(
-                    "Could not autodiscover the feed type (URL unreachable or not RSS/ATOM). "
-                    "Set the type explicitly or fix the URL.")})
-            self.feed_type_detected = detected
-
-    @property
-    def effective_feed_type(self) -> str:
-        return self.feed_type if self.feed_type != "auto" else (self.feed_type_detected or "rss")
 
     @property
     def has_push_transport(self) -> bool:

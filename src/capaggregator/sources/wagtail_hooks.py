@@ -18,7 +18,7 @@ class SourceAuthorityViewSet(SnippetViewSet):
     model = SourceAuthority
     icon = "globe"
     menu_label = "Authorities"
-    list_display = ["name", "country", "slug", "feed_url", "effective_feed_type", "mqtt_topic", "active"]
+    list_display = ["name", "country", "slug", "feed_url", "feed_type_detected", "mqtt_topic", "active"]
     list_filter = ["country", "active"]
     search_fields = ["name", "slug", "sender_values"]
 

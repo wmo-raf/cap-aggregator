@@ -235,6 +235,6 @@ def poll_feed(self, authority_id: int):
         fetched += 1
 
     authority.feed_last_polled = timezone.now()
-    authority.save(update_fields=["feed_etag", "feed_last_modified", "feed_last_polled"])
+    authority.save(update_fields=["feed_etag", "feed_last_modified", "feed_type_detected", "feed_last_polled"])
     if fetched:
         logger.info("Feed poll %s: %s new entries enqueued", authority.slug, fetched)
