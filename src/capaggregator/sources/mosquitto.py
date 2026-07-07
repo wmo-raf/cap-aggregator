@@ -26,6 +26,23 @@ def hash_password(password: str) -> str:
     )
 
 
+def verify_password(password: str, hashed: str) -> bool:
+    """Check a plaintext password against a $7$ PBKDF2-SHA512 hash (the inverse of
+    hash_password). Returns False on any malformed hash rather than raising."""
+    import hmac
+
+    try:
+        marker, iterations, salt_b64, derived_b64 = hashed.split("$")[1:]
+        if marker != "7":
+            return False
+        salt = base64.b64decode(salt_b64)
+        expected = base64.b64decode(derived_b64)
+    except (ValueError, TypeError):
+        return False
+    candidate = hashlib.pbkdf2_hmac("sha512", password.encode(), salt, int(iterations))
+    return hmac.compare_digest(candidate, expected)
+
+
 def render_auth_files() -> tuple[str, str]:
     """Return (passwd_content, acl_content) for all active authorities + the consumer."""
     from .models import SourceAuthority
