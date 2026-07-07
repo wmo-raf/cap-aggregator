@@ -47,6 +47,14 @@ class RawMessage(models.Model):
     def __str__(self):
         return f"{self.transport}:{self.sha256[:12]} [{self.state}]"
 
+    @property
+    def ingest_latency(self):
+        """Delay between when the alert was sent (CAP <sent>) and when we received
+        it. None until the message has been parsed far enough to know its sent time."""
+        if self.sent_at is None:
+            return None
+        return self.received_at - self.sent_at
+
 
 class DeliveryReceipt(models.Model):
     """One row per arrival of a CAP message per transport — including duplicates.
