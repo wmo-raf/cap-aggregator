@@ -104,6 +104,17 @@ class QuarantinedMessage(models.Model):
     def __str__(self):
         return f"Quarantine #{self.pk} [{self.status}]"
 
+    @property
+    def report_summary(self) -> str:
+        """Flatten the per-check report into legible text for the admin detail view."""
+        lines = []
+        for severity in ("errors", "warnings"):
+            entries = self.report.get(severity) or []
+            if entries:
+                lines.append(f"{severity.capitalize()}:")
+                lines += [f"  [{e.get('check', '?')}] {e.get('message', '')}" for e in entries]
+        return "\n".join(lines) or _("No issues recorded")
+
 
 # ---------------------------------------------------------------------------
 # Task-ferry Job models (progress-tracked, pollable at /api/jobs/<id>/)
