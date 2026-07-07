@@ -1,6 +1,7 @@
 from django.urls import path, reverse
 from wagtail import hooks
 from wagtail.admin.menu import MenuItem
+from wagtail.permission_policies import ModelPermissionPolicy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
@@ -8,13 +9,29 @@ from .admin_views import backfill_upload, quarantine_dismiss, quarantine_revalid
 from .models import QuarantinedMessage, RawMessage
 
 
+class ReadOnlyPermissionPolicy(ModelPermissionPolicy):
+    """Deny add/change/delete for everyone (even superusers) — the admin surface
+    is read-only. Raw messages are immutable; only list/inspect are allowed."""
+
+    def user_has_permission(self, user, action):
+        if action in {"add", "change", "delete"}:
+            return False
+        return super().user_has_permission(user, action)
+
+    def user_has_permission_for_instance(self, user, action, instance):
+        if action in {"add", "change", "delete"}:
+            return False
+        return super().user_has_permission_for_instance(user, action, instance)
+
+
 class RawMessageViewSet(SnippetViewSet):
     model = RawMessage
     icon = "download"
     menu_label = "Raw Messages"
-    list_display = ["sha256", "authority", "transport", "state", "received_at"]
-    list_filter = ["state", "transport"]
+    list_display = ["sha256", "authority", "transport", "state", "received_at", "ingest_latency"]
+    list_filter = ["state", "transport", "authority"]
     inspect_view_enabled = True
+    permission_policy = ReadOnlyPermissionPolicy(RawMessage)
 
 
 class QuarantineViewSet(SnippetViewSet):
