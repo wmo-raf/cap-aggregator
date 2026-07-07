@@ -142,4 +142,7 @@ dev-create-tile-function:
 	$(DEV_DC) exec $(APP) $(MANAGE) create_alerts_tile_function
 
 dev-test:
-	$(DEV_DC) exec $(APP) pytest
+	@export $$(grep -v '^[[:space:]]*#' .env | grep -v '^[[:space:]]*$$' | grep -v '^UID=' | xargs) && \
+	$(DEV_DC) exec \
+	  -e "DATABASE_URL=postgis://$$DB_USER:$$DB_PASSWORD@capagg-db:5432/$$DB_NAME" \
+	  $(APP) $(MANAGE) test --keepdb $(TEST_ARGS)

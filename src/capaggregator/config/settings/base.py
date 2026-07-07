@@ -206,7 +206,20 @@ CELERY_TASK_REJECT_ON_WORKER_LOST = True
 # Prevents one worker from hoarding tasks while others are idle.
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
-CELERY_BEAT_SCHEDULE = {}
+# Static schedule; django_celery_beat's DatabaseScheduler syncs these into
+# editable PeriodicTask rows on startup, so a fresh deploy ingests with no manual
+# step while operators can still pause/retune at runtime. The poll dispatcher
+# decides per-authority who is due (adaptive fast/reconcile interval); beat only ticks.
+CELERY_BEAT_SCHEDULE = {
+    "poll-all-feeds": {
+        "task": "capaggregator.ingestion.tasks.poll_all_feeds",
+        "schedule": 60,
+    },
+    "sweep-unprocessed": {
+        "task": "capaggregator.ingestion.tasks.sweep_unprocessed",
+        "schedule": 300,
+    },
+}
 
 # --- django-task-ferry (async jobs with progress, served at /api/jobs/) ---
 TASK_FERRY = {
