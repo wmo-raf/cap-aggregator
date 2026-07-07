@@ -135,6 +135,10 @@ class SourceAuthority(models.Model):
             raise ValidationError({"feed_url": _("A CAP RSS/ATOM feed URL is required for every authority.")})
 
     @property
+    def has_mqtt_credentials(self) -> bool:
+        return bool(self.mqtt_username)
+
+    @property
     def has_push_transport(self) -> bool:
         """MQTT credentials issued, or a webhook token in use. Determines whether
         the feed poller runs at the reconcile interval or the fast interval."""

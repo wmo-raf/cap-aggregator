@@ -1,0 +1,17 @@
+{% extends "wagtailadmin/generic/inspect.html" %}
+{% load i18n %}
+{% block main_content %}
+    {{ block.super }}
+    <div class="nice-padding">
+        <p>
+            {% if object.has_mqtt_credentials %}
+                {% trans "MQTT credentials: issued" %}
+            {% else %}
+                {% trans "MQTT credentials: not issued" %}
+            {% endif %}
+        </p>
+        <a class="button" href="{% url 'capagg_sources_issue_mqtt' object.pk %}">
+            {% trans "Issue / regenerate MQTT credentials" %}
+        </a>
+    </div>
+{% endblock %}

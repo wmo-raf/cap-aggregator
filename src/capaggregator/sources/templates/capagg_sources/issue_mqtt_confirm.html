@@ -1,0 +1,16 @@
+{% extends "wagtailadmin/base.html" %}
+{% load i18n %}
+{% block titletag %}{% trans "Issue MQTT credentials" %}{% endblock %}
+{% block content %}
+    {% include "wagtailadmin/shared/header.html" with title="Issue MQTT credentials" icon="key" %}
+    <div class="nice-padding">
+        <p>
+            {% blocktrans with name=authority.name %}Issue (or regenerate) MQTT credentials for
+            <b>{{ name }}</b>? Any existing password will stop working once the broker reloads.{% endblocktrans %}
+        </p>
+        <form action="" method="POST">
+            {% csrf_token %}
+            <button type="submit" class="button">{% trans "Issue credentials" %}</button>
+        </form>
+    </div>
+{% endblock %}

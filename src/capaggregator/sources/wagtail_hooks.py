@@ -8,9 +8,12 @@ Planned admin surface (docs/design.md §8):
 - Geocode registry with bulk import
 """
 
+from django.urls import path
+from wagtail import hooks
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
+from .admin_views import issue_mqtt_credentials
 from .models import SourceAuthority
 
 
@@ -18,9 +21,12 @@ class SourceAuthorityViewSet(SnippetViewSet):
     model = SourceAuthority
     icon = "globe"
     menu_label = "Authorities"
-    list_display = ["name", "country", "slug", "feed_url", "feed_type_detected", "mqtt_topic", "active"]
+    list_display = ["name", "country", "slug", "feed_url", "feed_type_detected", "has_mqtt_credentials", "active"]
     list_filter = ["country", "active"]
     search_fields = ["name", "slug", "sender_values"]
+    inspect_view_enabled = True
+    inspect_view_fields = ["name", "country", "sender_values", "feed_url", "mqtt_username", "mqtt_topic", "active"]
+    inspect_template_name = "capagg_sources/authority_inspect.html"
 
 
 class SourcesGroup(SnippetViewSetGroup):
@@ -30,3 +36,10 @@ class SourcesGroup(SnippetViewSetGroup):
 
 
 register_snippet(SourcesGroup)
+
+
+@hooks.register("register_admin_urls")
+def register_issue_mqtt_url():
+    return [
+        path("capagg-sources/<int:pk>/issue-mqtt/", issue_mqtt_credentials, name="capagg_sources_issue_mqtt"),
+    ]

@@ -1,0 +1,27 @@
+{% extends "wagtailadmin/base.html" %}
+{% load i18n %}
+{% block titletag %}{% trans "MQTT credentials issued" %}{% endblock %}
+{% block content %}
+    {% include "wagtailadmin/shared/header.html" with title="MQTT credentials issued" icon="key" %}
+    <div class="nice-padding">
+        <div class="help-block help-warning">
+            {% trans "Copy the password now — it is shown only once and cannot be retrieved again." %}
+        </div>
+
+        <table class="listing">
+            <tr><th>{% trans "Username" %}</th><td><code>{{ authority.mqtt_username }}</code></td></tr>
+            <tr><th>{% trans "Password" %}</th><td><code>{{ password }}</code></td></tr>
+            <tr><th>{% trans "Topic" %}</th><td><code>{{ authority.mqtt_topic }}</code></td></tr>
+        </table>
+
+        <h2>{% trans "cap-composer broker settings" %}</h2>
+        <p>{% trans "In the NMHS's cap-composer admin (Settings → MQTT Brokers), add a broker with:" %}</p>
+        <pre>Host:        {{ mqtt_host }}
+Port:        {{ mqtt_port }}
+Username:    {{ authority.mqtt_username }}
+Password:    {{ password }}
+Topic:       {{ authority.mqtt_topic }}
+QoS:         1
+is_wis2box:  unchecked</pre>
+    </div>
+{% endblock %}
