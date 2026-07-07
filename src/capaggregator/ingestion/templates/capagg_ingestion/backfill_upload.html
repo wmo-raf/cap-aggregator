@@ -1,0 +1,14 @@
+{% extends "wagtailadmin/base.html" %}
+{% load i18n %}
+{% block titletag %}{% trans "CAP backfill" %}{% endblock %}
+{% block content %}
+    {% include "wagtailadmin/shared/header.html" with title="CAP backfill" icon="upload" %}
+    <div class="nice-padding">
+        <p>{% trans "Upload a CAP .xml or a .zip of alerts to run through the ingestion pipeline." %}</p>
+        <form action="" method="POST" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="button">{% trans "Start backfill" %}</button>
+        </form>
+    </div>
+{% endblock %}
