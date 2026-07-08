@@ -1,0 +1,89 @@
+{% load i18n %}
+<section class="panel summary nice-padding" id="capagg-health-panel" data-api-url="{{ api_url }}">
+    <h2>{% trans "Ingestion health (last 30 days)" %}</h2>
+
+    <style>
+        #capagg-health-panel .capagg-banner { padding: .5rem 1rem; margin-bottom: .5rem; border-radius: 4px;
+            background: #fbe9e7; color: #7a2e26; font-weight: 600; }
+        #capagg-health-panel .capagg-rows { max-height: 24rem; overflow-y: auto; }
+        #capagg-health-panel table { width: 100%; border-collapse: collapse; }
+        #capagg-health-panel td, #capagg-health-panel th { padding: 2px 4px; white-space: nowrap; }
+        #capagg-health-panel .capagg-cells { display: inline-flex; gap: 1px; }
+        #capagg-health-panel .capagg-cell { width: 8px; height: 16px; border-radius: 1px; background: #d9d9d9; }
+        #capagg-health-panel .capagg-cell.red { background: #d7352a; }
+        #capagg-health-panel .capagg-cell.orange { background: #e8830c; }
+        #capagg-health-panel .capagg-cell.green { background: #2e8b57; }
+        #capagg-health-panel .capagg-cell.alive { background: #a7d7b5; }
+        #capagg-health-panel .capagg-cell.gray { background: #d9d9d9; }
+        #capagg-health-panel .capagg-legend { font-size: .8em; color: #666; margin: .25rem 0; }
+    </style>
+
+    <p class="capagg-legend">
+        <span class="capagg-cell red"></span> {% trans "feed error" %}
+        <span class="capagg-cell orange"></span> {% trans "quarantine" %}
+        <span class="capagg-cell green"></span> {% trans "alerts" %}
+        <span class="capagg-cell alive"></span> {% trans "alive, quiet" %}
+        <span class="capagg-cell gray"></span> {% trans "no signal" %}
+    </p>
+
+    <div class="capagg-banner" hidden></div>
+    <div class="capagg-rows"><table><tbody></tbody></table></div>
+
+    <script>
+    (function () {
+        var panel = document.getElementById("capagg-health-panel");
+        var apiUrl = panel.dataset.apiUrl;
+        var banner = panel.querySelector(".capagg-banner");
+        var tbody = panel.querySelector("tbody");
+
+        function paint(data) {
+            if (data.mqtt_consumer_connected === false) {
+                banner.textContent = "{% trans 'MQTT consumer disconnected — push ingestion is stopped.' %}";
+                banner.hidden = false;
+            } else {
+                banner.hidden = true;
+            }
+            tbody.innerHTML = "";
+            (data.authorities || []).forEach(function (a) {
+                var tr = document.createElement("tr");
+
+                var name = document.createElement("td");
+                name.textContent = a.name + " (" + (a.country || "").toUpperCase() + ")";
+                tr.appendChild(name);
+
+                var cellsTd = document.createElement("td");
+                var cells = document.createElement("span");
+                cells.className = "capagg-cells";
+                (a.statuses || []).forEach(function (status, i) {
+                    var c = document.createElement("span");
+                    c.className = "capagg-cell " + status;
+                    c.title = data.days[i] + ": " + status;
+                    cells.appendChild(c);
+                });
+                cellsTd.appendChild(cells);
+                tr.appendChild(cellsTd);
+
+                var actions = document.createElement("td");
+                var link = document.createElement("a");
+                link.className = "button button-small button-secondary";
+                link.href = a.detail_url;
+                link.textContent = "{% trans 'Detail' %}";
+                actions.appendChild(link);
+                tr.appendChild(actions);
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function refresh() {
+            fetch(apiUrl, { headers: { "Accept": "application/json" } })
+                .then(function (r) { return r.json(); })
+                .then(paint)
+                .catch(function () { /* transient; next tick retries */ });
+        }
+
+        refresh();
+        setInterval(refresh, 60000);
+    })();
+    </script>
+</section>
