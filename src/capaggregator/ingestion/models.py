@@ -124,6 +124,31 @@ class QuarantinedMessage(models.Model):
         return "\n".join(lines) or _("No issues recorded")
 
 
+class SourceEvent(models.Model):
+    """Transport telemetry recorded beside ingestion (never part of it): every feed
+    poll attempt (ok/failure), rejected webhook attempts, and MQTT consumer
+    connect/disconnect events. Powers the health dashboard's red (poll failed) and
+    faint-green (poll ok, no alerts) signals. Immutable, swept after 90 days."""
+
+    authority = models.ForeignKey(
+        "capagg_sources.SourceAuthority", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="source_events",
+        help_text=_("Null for unattributable/global events (bad-token webhook, MQTT consumer)"),
+    )
+    transport = models.CharField(max_length=10, choices=RawMessage.TRANSPORTS)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+    ok = models.BooleanField()
+    error = models.TextField(blank=True)
+    detail = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-occurred_at"]
+        indexes = [models.Index(fields=["authority", "occurred_at"])]
+
+    def __str__(self):
+        return f"{self.transport} {'ok' if self.ok else 'fail'} @ {self.occurred_at:%Y-%m-%d %H:%M}"
+
+
 # ---------------------------------------------------------------------------
 # Task-ferry Job models (progress-tracked, pollable at /api/jobs/<id>/)
 # ---------------------------------------------------------------------------

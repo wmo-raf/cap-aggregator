@@ -6,7 +6,7 @@ from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
 from .admin_views import backfill_upload, quarantine_dismiss, quarantine_revalidate
-from .models import QuarantinedMessage, RawMessage
+from .models import QuarantinedMessage, RawMessage, SourceEvent
 
 
 class ReadOnlyPermissionPolicy(ModelPermissionPolicy):
@@ -45,10 +45,20 @@ class QuarantineViewSet(SnippetViewSet):
     inspect_template_name = "capagg_ingestion/quarantine_inspect.html"
 
 
+class SourceEventViewSet(SnippetViewSet):
+    model = SourceEvent
+    icon = "list-ul"
+    menu_label = "Transport Events"
+    list_display = ["authority", "transport", "ok", "occurred_at", "error"]
+    list_filter = ["transport", "ok", "authority"]
+    inspect_view_enabled = True
+    permission_policy = ReadOnlyPermissionPolicy(SourceEvent)
+
+
 class IngestionGroup(SnippetViewSetGroup):
     menu_label = "Ingestion"
     menu_icon = "download"
-    items = [RawMessageViewSet, QuarantineViewSet]
+    items = [RawMessageViewSet, QuarantineViewSet, SourceEventViewSet]
 
 
 register_snippet(IngestionGroup)
