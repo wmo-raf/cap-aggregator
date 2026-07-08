@@ -98,9 +98,7 @@ class SourceAuthority(models.Model):
     # authorities added by hand, so uniqueness only applies among non-empty
     # values (see Meta.constraints).
     wmo_guid = models.CharField(max_length=255, blank=True, editable=False, verbose_name=_("WMO registry GUID"))
-    wmo_feed_url = models.URLField(
-        blank=True, editable=False, verbose_name=_("WMO registry feed URL (captured)")
-    )
+    wmo_feed_url = models.URLField(blank=True, editable=False, verbose_name=_("WMO registry feed URL (captured)"))
 
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
