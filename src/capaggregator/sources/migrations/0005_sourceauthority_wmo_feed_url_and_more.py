@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('capagg_sources', '0003_alter_sourceauthority_country'),
+        ('capagg_sources', '0004_alter_sourceauthority_sender_values'),
     ]
 
     operations = [
