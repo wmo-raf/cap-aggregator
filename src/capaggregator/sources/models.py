@@ -3,6 +3,7 @@ import secrets
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from django_countries.fields import CountryField
@@ -91,6 +92,16 @@ class SourceAuthority(models.Model):
     feed_last_modified = models.CharField(max_length=100, blank=True, editable=False)
     feed_last_polled = models.DateTimeField(null=True, blank=True, editable=False)
 
+    # WMO Registry picker linkage (issue #28) — stamped when an authority is
+    # created/linked from the WMO Register of Alerting Authorities. Drives
+    # NEEDS UPDATE detection when the registry's feed URL changes. Blank for
+    # authorities added by hand, so uniqueness only applies among non-empty
+    # values (see Meta.constraints).
+    wmo_guid = models.CharField(max_length=255, blank=True, editable=False, verbose_name=_("WMO registry GUID"))
+    wmo_feed_url = models.URLField(
+        blank=True, editable=False, verbose_name=_("WMO registry feed URL (captured)")
+    )
+
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
@@ -123,6 +134,11 @@ class SourceAuthority(models.Model):
         verbose_name = _("Source Authority")
         verbose_name_plural = _("Source Authorities")
         ordering = ["country", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["wmo_guid"], condition=~Q(wmo_guid=""), name="unique_non_empty_wmo_guid"
+            ),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.country.code})"

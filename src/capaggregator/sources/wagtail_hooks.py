@@ -8,13 +8,35 @@ Planned admin surface (docs/design.md §8):
 - Geocode registry with bulk import
 """
 
-from django.urls import path
+from django.urls import path, reverse
+from django.utils.functional import cached_property
+from django.utils.translation import gettext_lazy as _
 from wagtail import hooks
+from wagtail.admin.widgets.button import HeaderButton
 from wagtail.snippets.models import register_snippet
+from wagtail.snippets.views.snippets import IndexView as SnippetIndexView
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
-from .admin_views import issue_mqtt_credentials
+from .admin_views import issue_mqtt_credentials, wmo_registry_picker
 from .models import SourceAuthority
+
+
+class SourceAuthorityIndexView(SnippetIndexView):
+    """Adds a secondary "Add from WMO Registry" button beside the default Add
+    button, gated on the same "add" permission (issue #28)."""
+
+    @cached_property
+    def header_buttons(self):
+        buttons = super().header_buttons
+        if self.user_has_permission("add"):
+            buttons.append(
+                HeaderButton(
+                    _("Add from WMO Registry"),
+                    url=reverse("capagg_sources_wmo_registry"),
+                    icon_name="globe",
+                )
+            )
+        return buttons
 
 
 class SourceAuthorityViewSet(SnippetViewSet):
@@ -27,6 +49,7 @@ class SourceAuthorityViewSet(SnippetViewSet):
     inspect_view_enabled = True
     inspect_view_fields = ["name", "country", "sender_values", "feed_url", "mqtt_username", "mqtt_topic", "active"]
     inspect_template_name = "capagg_sources/authority_inspect.html"
+    index_view_class = SourceAuthorityIndexView
 
 
 class SourcesGroup(SnippetViewSetGroup):
@@ -42,4 +65,11 @@ register_snippet(SourcesGroup)
 def register_issue_mqtt_url():
     return [
         path("capagg-sources/<int:pk>/issue-mqtt/", issue_mqtt_credentials, name="capagg_sources_issue_mqtt"),
+    ]
+
+
+@hooks.register("register_admin_urls")
+def register_wmo_registry_url():
+    return [
+        path("capagg-sources/wmo-registry/", wmo_registry_picker, name="capagg_sources_wmo_registry"),
     ]

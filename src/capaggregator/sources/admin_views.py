@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, render
 from wagtail.admin.auth import require_admin_access
 
 from .models import SourceAuthority
+from .registry import derive_registry_view, fetch_wmo_registry, parse_wmo_registry
 
 
 @require_admin_access
@@ -28,3 +29,19 @@ def issue_mqtt_credentials(request, pk):
         })
 
     return render(request, "capagg_sources/issue_mqtt_confirm.html", {"authority": authority})
+
+
+@require_admin_access
+def wmo_registry_picker(request):
+    """Read-only picker over the WMO Register of Alerting Authorities (issue
+    #28). Fetches (cached) + parses the live register and shows each entry with
+    an import status. Selection checkboxes render on selectable rows; the
+    Add/Update action itself is wired up in a later issue."""
+    refresh = request.GET.get("refresh") == "1"
+    content, error = fetch_wmo_registry(refresh=refresh)
+
+    rows = []
+    if content is not None:
+        rows = derive_registry_view(parse_wmo_registry(content))
+
+    return render(request, "capagg_sources/wmo_registry_picker.html", {"rows": rows, "error": error})
