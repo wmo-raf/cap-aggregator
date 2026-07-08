@@ -1,6 +1,7 @@
 from django.urls import path, reverse
 from wagtail import hooks
 from wagtail.admin.menu import MenuItem
+from wagtail.admin.ui.components import Component
 from wagtail.permission_policies import ModelPermissionPolicy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
@@ -84,3 +85,18 @@ def register_backfill_admin_url():
 @hooks.register("register_admin_menu_item")
 def register_backfill_menu_item():
     return MenuItem("CAP backfill", reverse("capagg_ingestion_backfill_upload"), icon_name="upload")
+
+
+class HealthPanel(Component):
+    order = 200
+    template_name = "capagg_ingestion/health_panel.html"
+
+    def get_context_data(self, parent_context):
+        context = super().get_context_data(parent_context)
+        context["api_url"] = reverse("capagg_ingestion_health_api")
+        return context
+
+
+@hooks.register("construct_homepage_panels")
+def add_health_panel(request, panels):
+    panels.append(HealthPanel())
