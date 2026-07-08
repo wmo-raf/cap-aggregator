@@ -43,8 +43,9 @@ class AuthorityMonitorTests(TestCase):
 
         response = self.client.get(self._url(), {"state": "quarantined"})
 
-        self.assertContains(response, quarantined.sha256)
-        self.assertNotContains(response, stored.sha256)
+        recent_ids = [m.id for m in response.context["recent_messages"]]
+        self.assertIn(quarantined.id, recent_ids)
+        self.assertNotIn(stored.id, recent_ids)
 
     def test_quarantine_strip_shows_pending_count(self):
         create_quarantined_message(authority=self.authority, status="pending")
