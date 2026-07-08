@@ -55,6 +55,37 @@ class RawMessage(models.Model):
             return None
         return self.received_at - self.sent_at
 
+    @property
+    def alert_title(self):
+        """Headline (falling back to CAP <event>) of the parsed alert, or None if
+        this message has not been parsed into an alert yet. Uses prefetched
+        `alerts__infos` when available to avoid per-row queries in lists."""
+        alert = next(iter(self.alerts.all()), None)
+        if alert is None:
+            return None
+        info = next(iter(alert.infos.all()), None)
+        if info is None:
+            return None
+        return info.headline or info.event
+
+    @property
+    def ingest_latency_display(self):
+        """Human-readable `ingest_latency`, scaled to the largest sensible unit
+        (ms / s / m s / h m). None when latency is unknown."""
+        latency = self.ingest_latency
+        if latency is None:
+            return None
+        total = max(latency.total_seconds(), 0)
+        if total < 1:
+            return f"{total * 1000:.0f} ms"
+        if total < 60:
+            return f"{total:.1f} s"
+        if total < 3600:
+            minutes, seconds = divmod(int(total), 60)
+            return f"{minutes}m {seconds}s"
+        hours, remainder = divmod(int(total), 3600)
+        return f"{hours}h {remainder // 60}m"
+
 
 class DeliveryReceipt(models.Model):
     """One row per arrival of a CAP message per transport — including duplicates.

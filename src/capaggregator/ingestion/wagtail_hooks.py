@@ -2,6 +2,7 @@ from django.urls import path, reverse
 from wagtail import hooks
 from wagtail.admin.menu import MenuItem
 from wagtail.admin.ui.components import Component
+from wagtail.admin.ui.tables import Column
 from wagtail.permission_policies import ModelPermissionPolicy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
@@ -35,9 +36,24 @@ class RawMessageViewSet(SnippetViewSet):
     model = RawMessage
     icon = "download"
     menu_label = "Raw Messages"
-    list_display = ["sha256", "authority", "transport", "state", "received_at", "ingest_latency"]
+    list_display = [
+        "received_at",
+        "authority",
+        Column("alert_title", label="Title"),
+        "transport",
+        "state",
+        "sent_at",
+        Column("ingest_latency_display", label="Latency"),
+    ]
     list_filter = ["state", "transport", "authority"]
     inspect_view_enabled = True
+
+    def get_queryset(self, request):
+        # Prefetch so the `alert_title` column doesn't fire per-row queries.
+        qs = super().get_queryset(request)
+        if qs is None:
+            qs = self.model._default_manager.all()
+        return qs.prefetch_related("alerts__infos")
     permission_policy = ReadOnlyPermissionPolicy(RawMessage)
 
 

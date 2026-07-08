@@ -75,6 +75,7 @@ dependencies = [
     { name = "django" },
     { name = "django-celery-beat" },
     { name = "django-celery-results" },
+    { name = "django-countries" },
     { name = "django-environ" },
     { name = "django-redis" },
     { name = "django-task-ferry" },
@@ -92,7 +93,6 @@ dependencies = [
     { name = "shapely" },
     { name = "signxml" },
     { name = "wagtail" },
-    { name = "whitenoise" },
 ]
 
 [package.dev-dependencies]
@@ -112,6 +112,7 @@ requires-dist = [
     { name = "django", specifier = ">=5.0,<6.0" },
     { name = "django-celery-beat", specifier = ">=2.6" },
     { name = "django-celery-results", specifier = ">=2.5" },
+    { name = "django-countries", specifier = ">=7.6" },
     { name = "django-environ", specifier = ">=0.11" },
     { name = "django-redis", specifier = ">=5.4" },
     { name = "django-task-ferry", specifier = ">=0.1.1" },
@@ -129,7 +130,6 @@ requires-dist = [
     { name = "shapely", specifier = ">=2.0" },
     { name = "signxml", specifier = ">=3.2" },
     { name = "wagtail", specifier = ">=7.0,<8.0" },
-    { name = "whitenoise", specifier = ">=6.6" },
 ]
 
 [package.metadata.requires-dev]
@@ -497,6 +497,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a6/b5/9966c28e31014c228305e09d48b19b35522a8f941fe5af5f81f40dc8fa80/django_celery_results-2.6.0.tar.gz", hash = "sha256:9abcd836ae6b61063779244d8887a88fe80bbfaba143df36d3cb07034671277c", size = 83985, upload-time = "2025-04-10T08:23:52.677Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2c/da/70f0f3c5364735344c4bc89e53413bcaae95b4fc1de4e98a7a3b9fb70c88/django_celery_results-2.6.0-py3-none-any.whl", hash = "sha256:b9ccdca2695b98c7cbbb8dea742311ba9a92773d71d7b4944a676e69a7df1c73", size = 38351, upload-time = "2025-04-10T08:23:49.965Z" },
+]
+
+[[package]]
+name = "django-countries"
+version = "9.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "asgiref" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6e/c1/1e8feb818164c3f23465c08cc3bc1cd7da7101506268a138a1b92ea40339/django_countries-9.0.0.tar.gz", hash = "sha256:a993416af08a8a4e6e866d56b71c7ce92351c81a2543da213cd7899917567a42", size = 614144, upload-time = "2026-06-10T00:39:28.841Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/bb/5a17b339852f6486d02b4dd0033132082976c71f049ee909ccb42917be52/django_countries-9.0.0-py3-none-any.whl", hash = "sha256:21fce461733c856355c487d1f24b71338599482505004a0c2e521fd574a59fb1", size = 931759, upload-time = "2026-06-10T00:39:26.851Z" },
 ]
 
 [[package]]
@@ -1673,15 +1686,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/34/74/c6428f875774288bec1396f5bfcbc2d925700a4dad61727fd5f2b12f249d/wcwidth-0.8.2.tar.gz", hash = "sha256:91fbef97204b96a3d4d421609b80340b760cf33e26da123ff243d76b1fda8dda", size = 1466253, upload-time = "2026-06-29T18:11:11.601Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/96/42/3e5985a0a7e57de470b320c6d6a1a67c844f6737a587f3d44dd13d1819e7/wcwidth-0.8.2-py3-none-any.whl", hash = "sha256:d63947694a0539a1d51e01eda7caf800c291020e6cdd7e28ad7b14dd33ad4f85", size = 323166, upload-time = "2026-06-29T18:11:09.888Z" },
-]
-
-[[package]]
-name = "whitenoise"
-version = "6.12.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/cb/2a/55b3f3a4ec326cd077c1c3defeee656b9298372a69229134d930151acd01/whitenoise-6.12.0.tar.gz", hash = "sha256:f723ebb76a112e98816ff80fcea0a6c9b8ecde835f8ddda25df7a30a3c2db6ad", size = 26841, upload-time = "2026-02-27T00:05:42.028Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/eb/d5583a11486211f3ebd4b385545ae787f32363d453c19fffd81106c9c138/whitenoise-6.12.0-py3-none-any.whl", hash = "sha256:fc5e8c572e33ebf24795b47b6a7da8da3c00cff2349f5b04c02f28d0cc5a3cc2", size = 20302, upload-time = "2026-02-27T00:05:40.086Z" },
 ]
 
 [[package]]

@@ -55,7 +55,7 @@ def authority_monitor(request, pk):
     transport = request.GET.get("transport") or ""
     since = request.GET.get("since") or ""
 
-    messages_qs = RawMessage.objects.filter(authority=authority)
+    messages_qs = RawMessage.objects.filter(authority=authority).prefetch_related("alerts__infos")
     events_qs = SourceEvent.objects.filter(authority=authority)
     if state:
         messages_qs = messages_qs.filter(state=state)
@@ -74,8 +74,8 @@ def authority_monitor(request, pk):
         "quarantine_pending_count": QuarantinedMessage.objects.filter(
             raw_message__authority=authority, status__in=["pending", "notified"]
         ).count(),
-        "recent_messages": messages_qs[:50],
-        "recent_events": events_qs[:50],
+        "recent_messages": messages_qs[:5],
+        "recent_events": events_qs[:5],
         "health_api_url": reverse("capagg_ingestion_health_api") + f"?authority={authority.id}",
         "filters": {"state": state, "transport": transport, "since": since},
         "state_choices": RawMessage.STATES,

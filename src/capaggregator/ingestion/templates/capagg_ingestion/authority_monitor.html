@@ -1,86 +1,306 @@
 {% extends "wagtailadmin/base.html" %}
 {% load i18n %}
 {% block titletag %}{% blocktrans with name=authority.name %}Monitor: {{ name }}{% endblocktrans %}{% endblock %}
+
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        .capagg-monitor {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            max-width: 60rem;
+        }
+
+        .capagg-panel {
+            border: 1px solid var(--w-color-border-furniture);
+            border-radius: 5px;
+            overflow: hidden;
+            background: var(--w-color-surface-page);
+        }
+
+        .capagg-panel__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin: 0;
+            padding: .75rem 1rem;
+            font-size: 1.1em;
+            font-weight: 600;
+            background: var(--w-color-grey-50);
+            color: var(--w-color-text-label);
+            border-bottom: 1px solid var(--w-color-border-furniture);
+        }
+
+        .capagg-panel__header .capagg-panel__link {
+            font-size: .85rem;
+            font-weight: 400;
+        }
+
+        .capagg-panel__body {
+            padding: 1rem;
+        }
+
+        .capagg-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+
+        .capagg-table th {
+            text-align: left;
+            font-weight: 600;
+            color: var(--w-color-text-label);
+        }
+
+        .capagg-table thead th {
+            border-bottom: 2px solid var(--w-color-border-furniture);
+        }
+
+        .capagg-table td, .capagg-table th {
+            padding: .5rem .6rem;
+            border-bottom: 1px solid var(--w-color-border-furniture);
+            vertical-align: top;
+        }
+
+        .capagg-table tbody tr:last-child td,
+        .capagg-facts tr:last-child th,
+        .capagg-facts tr:last-child td {
+            border-bottom: none;
+        }
+
+        .capagg-facts th {
+            width: 12rem;
+            white-space: nowrap;
+            color: var(--w-color-grey-400);
+        }
+
+        .capagg-badge {
+            display: inline-block;
+            padding: .1rem .5rem;
+            border-radius: 3px;
+            font-size: .8rem;
+            font-weight: 600;
+        }
+
+        .capagg-badge--ok {
+            background: var(--w-color-positive-100);
+            color: var(--w-color-white);
+        }
+
+        .capagg-badge--fail {
+            background: var(--w-color-critical-200);
+            color: var(--w-color-white);
+        }
+
+        .capagg-badge--muted {
+            background: var(--w-color-grey-100);
+            color: var(--w-color-text-label);
+        }
+
+        .capagg-filter {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 1rem;
+        }
+
+        .capagg-filter label {
+            display: flex;
+            flex-direction: column;
+            gap: .25rem;
+            font-size: .85rem;
+            font-weight: 600;
+            color: var(--w-color-text-label);
+        }
+    </style>
+{% endblock %}
+
 {% block content %}
     {% include "wagtailadmin/shared/header.html" with title=authority.name subtitle="Ingestion monitor" icon="download" %}
     <div class="nice-padding">
+        <div class="capagg-monitor">
 
-        {# 1. Header facts #}
-        <table class="listing">
-            <tr><th>{% trans "Country" %}</th><td>{{ authority.country|upper }}</td></tr>
-            <tr><th>{% trans "Active" %}</th><td>{{ authority.active|yesno }}</td></tr>
-            <tr><th>{% trans "Feed URL" %}</th><td><code>{{ authority.feed_url }}</code> ({{ authority.feed_type_detected|default:"?" }})</td></tr>
-            <tr><th>{% trans "MQTT credentials" %}</th><td>{{ authority.has_mqtt_credentials|yesno:"issued,not issued" }}</td></tr>
-            <tr>
-                <th>{% trans "Last poll" %}</th>
-                <td>
-                    {% if last_poll %}
-                        {% if last_poll.ok %}{% trans "OK" %}{% else %}{% trans "FAILED" %}: {{ last_poll.error }}{% endif %}
-                        — {{ last_poll.occurred_at|timesince }} {% trans "ago" %}
-                    {% else %}{% trans "never polled" %}{% endif %}
-                </td>
-            </tr>
-        </table>
-        <p>
-            <a href="{% url 'capagg_sources_issue_mqtt' authority.pk %}">{% trans "Issue / regenerate MQTT credentials" %}</a>
-        </p>
+            {# 1. Header facts #}
+            <section class="capagg-panel">
+                <h2 class="capagg-panel__header">
+                    {% trans "Authority" %}
+                    <a class="button button-small button-secondary" href="{% url 'capagg_sources_issue_mqtt' authority.pk %}">
+                        {% trans "Issue / regenerate MQTT credentials" %}
+                    </a>
+                </h2>
+                <div class="capagg-panel__body">
+                    <table class="capagg-table capagg-facts">
+                        <tr>
+                            <th>{% trans "Country" %}</th>
+                            <td>{{ authority.country.name }} ({{ authority.country.code }})</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Active" %}</th>
+                            <td>
+                                {% if authority.active %}
+                                    <span class="capagg-badge capagg-badge--ok">{% trans "Active" %}</span>
+                                {% else %}
+                                    <span class="capagg-badge capagg-badge--muted">{% trans "Inactive" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Feed URL" %}</th>
+                            <td><code>{{ authority.feed_url }}</code> ({{ authority.feed_type_detected|default:"?" }})</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "MQTT credentials" %}</th>
+                            <td>
+                                {% if authority.has_mqtt_credentials %}
+                                    <span class="capagg-badge capagg-badge--ok">{% trans "Issued" %}</span>
+                                {% else %}
+                                    <span class="capagg-badge capagg-badge--muted">{% trans "Not issued" %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Last poll" %}</th>
+                            <td>
+                                {% if last_poll %}
+                                    {% if last_poll.ok %}
+                                        <span class="capagg-badge capagg-badge--ok">{% trans "OK" %}</span>
+                                    {% else %}
+                                        <span class="capagg-badge capagg-badge--fail">{% trans "FAILED" %}</span> {{ last_poll.error }}
+                                    {% endif %}
+                                    — {{ last_poll.occurred_at|timesince }} {% trans "ago" %}
+                                {% else %}
+                                    {% trans "never polled" %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </section>
 
-        {# 2. Activity strip (fetched client-side from the health endpoint, single-authority mode) #}
-        <div id="activity-strip" data-api-url="{{ health_api_url }}"></div>
+            {# 2. Activity strip (fetched client-side from the health endpoint, single-authority mode) #}
+            <section class="capagg-panel">
+                <h2 class="capagg-panel__header">{% trans "Activity (last 30 days)" %}</h2>
+                <div class="capagg-panel__body">
+                    <div id="activity-strip" data-api-url="{{ health_api_url }}"></div>
+                </div>
+            </section>
 
-        {# 3. Filter bar #}
-        <form method="get" class="nice-padding">
-            <label>{% trans "State" %}
-                <select name="state">
-                    <option value="">{% trans "any" %}</option>
-                    {% for value, label in state_choices %}
-                        <option value="{{ value }}" {% if value == filters.state %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>{% trans "Transport" %}
-                <select name="transport">
-                    <option value="">{% trans "any" %}</option>
-                    {% for value, label in transport_choices %}
-                        <option value="{{ value }}" {% if value == filters.transport %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>{% trans "Since" %} <input type="date" name="since" value="{{ filters.since }}"></label>
-            <button type="submit" class="button">{% trans "Filter" %}</button>
-        </form>
+            {# 3. Filter bar #}
+            <section class="capagg-panel">
+                <h2 class="capagg-panel__header">{% trans "Filter messages" %}</h2>
+                <div class="capagg-panel__body">
+                    <form method="get" class="capagg-filter">
+                        <label>{% trans "State" %}
+                            <select name="state">
+                                <option value="">{% trans "any" %}</option>
+                                {% for value, label in state_choices %}
+                                    <option value="{{ value }}" {% if value == filters.state %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>{% trans "Transport" %}
+                            <select name="transport">
+                                <option value="">{% trans "any" %}</option>
+                                {% for value, label in transport_choices %}
+                                    <option value="{{ value }}" {% if value == filters.transport %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>{% trans "Since" %}
+                            <input type="date" name="since" value="{{ filters.since }}">
+                        </label>
+                        <button type="submit" class="button">{% trans "Filter" %}</button>
+                    </form>
+                </div>
+            </section>
 
-        {# 4. Recent messages #}
-        <h2>{% trans "Recent messages" %} <a href="{{ messages_all_url }}">{% trans "view all" %}</a></h2>
-        <table class="listing">
-            <thead><tr><th>{% trans "State" %}</th><th>{% trans "Transport" %}</th><th>{% trans "Received" %}</th><th>{% trans "Latency" %}</th><th>sha256</th></tr></thead>
-            <tbody>
-            {% for m in recent_messages %}
-                <tr><td>{{ m.state }}</td><td>{{ m.transport }}</td><td>{{ m.received_at }}</td><td>{{ m.ingest_latency|default:"—" }}</td><td><code>{{ m.sha256 }}</code></td></tr>
-            {% empty %}
-                <tr><td colspan="5">{% trans "No messages." %}</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+            {# 4. Recent messages #}
+            <section class="capagg-panel">
+                <h2 class="capagg-panel__header">
+                    {% trans "Recent messages" %}
+                    <a class="capagg-panel__link" href="{{ messages_all_url }}">{% trans "view all" %}</a>
+                </h2>
+                <div class="capagg-panel__body">
+                    <table class="capagg-table">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Title" %}</th>
+                                <th>{% trans "State" %}</th>
+                                <th>{% trans "Transport" %}</th>
+                                <th>{% trans "Sent" %}</th>
+                                <th>{% trans "Received" %}</th>
+                                <th>{% trans "Latency" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in recent_messages %}
+                                <tr>
+                                    <td>{{ m.alert_title|default:"—" }}</td>
+                                    <td>{{ m.state }}</td>
+                                    <td>{{ m.transport }}</td>
+                                    <td>{{ m.sent_at|default:"—" }}</td>
+                                    <td>{{ m.received_at }}</td>
+                                    <td>{{ m.ingest_latency_display|default:"—" }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="6">{% trans "No messages." %}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
-        {# 5. Transport events #}
-        <h2>{% trans "Transport events" %} <a href="{{ events_all_url }}">{% trans "view all" %}</a></h2>
-        <table class="listing">
-            <thead><tr><th>{% trans "Time" %}</th><th>{% trans "Transport" %}</th><th>{% trans "OK" %}</th><th>{% trans "Error" %}</th></tr></thead>
-            <tbody>
-            {% for e in recent_events %}
-                <tr><td>{{ e.occurred_at }}</td><td>{{ e.transport }}</td><td>{{ e.ok|yesno }}</td><td>{{ e.error }}</td></tr>
-            {% empty %}
-                <tr><td colspan="4">{% trans "No events." %}</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+            {# 5. Transport events #}
+            <section class="capagg-panel">
+                <h2 class="capagg-panel__header">
+                    {% trans "Transport events" %}
+                    <a class="capagg-panel__link" href="{{ events_all_url }}">{% trans "view all" %}</a>
+                </h2>
+                <div class="capagg-panel__body">
+                    <table class="capagg-table">
+                        <thead>
+                            <tr>
+                                <th>{% trans "Time" %}</th>
+                                <th>{% trans "Transport" %}</th>
+                                <th>{% trans "OK" %}</th>
+                                <th>{% trans "Error" %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for e in recent_events %}
+                                <tr>
+                                    <td>{{ e.occurred_at }}</td>
+                                    <td>{{ e.transport }}</td>
+                                    <td>
+                                        {% if e.ok %}
+                                            <span class="capagg-badge capagg-badge--ok">{% trans "OK" %}</span>
+                                        {% else %}
+                                            <span class="capagg-badge capagg-badge--fail">{% trans "Error" %}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ e.error }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="4">{% trans "No events." %}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
-        {# 6. Quarantine strip #}
-        <h2>{% trans "Quarantine" %}</h2>
-        <p>
-            {% blocktrans count count=quarantine_pending_count %}{{ count }} pending quarantined message.{% plural %}{{ count }} pending quarantined messages.{% endblocktrans %}
-            <a href="{{ quarantine_all_url }}">{% trans "open inbox" %}</a>
-        </p>
+            {# 6. Quarantine strip #}
+            <section class="capagg-panel">
+                <h2 class="capagg-panel__header">
+                    {% trans "Quarantine" %}
+                    <a class="capagg-panel__link" href="{{ quarantine_all_url }}">{% trans "open inbox" %}</a>
+                </h2>
+                <div class="capagg-panel__body">
+                    {% blocktrans count count=quarantine_pending_count %}{{ count }} pending quarantined message.{% plural %}{{ count }} pending quarantined messages.{% endblocktrans %}
+                </div>
+            </section>
+
+        </div>
     </div>
 {% endblock %}

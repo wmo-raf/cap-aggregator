@@ -124,7 +124,7 @@ def ingest_raw_message(self, transport: str, xml: str, topic: str = "", authorit
     if authority is None and topic.startswith("cap/in/"):
         parts = topic.split("/")
         if len(parts) >= 4:
-            authority = SourceAuthority.objects.filter(slug=parts[3], country=parts[2]).first()
+            authority = SourceAuthority.objects.filter(slug=parts[3], country=parts[2].upper()).first()
             raw.authority = authority
 
     # --- Dedup layer 1: exact bytes already seen ---

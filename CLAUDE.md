@@ -81,6 +81,11 @@ Check these when the task touches the relevant area:
   immutable-store-first dedup + receipts, single transport entry point, the
   denormalized `ResolvedAlert` read model, signal→on_commit→Celery side effects,
   and geometry conventions.
+- **[.claude/docs/template_conventions.md](.claude/docs/template_conventions.md)**
+  — Read before editing any Django/Wagtail HTML template. Markup/JS conventions
+  (no inline styles, `extra_css`/`extra_js` blocks, `const`/`let`, DOMContentLoaded
+  over IIFEs) and which CSS custom-property tokens to use per context (`--w-color-*`
+  in admin, our own `--color-*` in the frontend — never mix them).
 - **[docs/design.md](docs/design.md)** — full system design and rationale
   (transport model, lineage resolution, storage schema, serving, validation
   layers, admin, frontend, phasing, open questions). The source of *intent*; parts
