@@ -27,7 +27,7 @@ def mqtt_consumer_connected() -> bool:
 
 
 def _new_signal():
-    return {"states": set(), "poll_ok": False, "poll_fail": False,
+    return {"states": set(), "latest_poll_ok": None,
             "counts": {"stored": 0, "duplicate": 0, "quarantined": 0, "polls_ok": 0, "polls_failed": 0}}
 
 
@@ -35,13 +35,13 @@ def _status(signal) -> str:
     """Collapse a day's signals into a colour, worst-first."""
     if signal is None:
         return "gray"
-    if signal["poll_fail"]:
+    if signal["latest_poll_ok"] is False:
         return "red"
     if signal["states"] & {"quarantined", "failed"}:
         return "orange"
     if signal["states"] & {"stored", "duplicate"}:
         return "green"
-    if signal["poll_ok"]:
+    if signal["latest_poll_ok"] is True:
         return "alive"
     return "gray"
 
@@ -78,14 +78,24 @@ def build_health_matrix(*, days: int = 30, now=None, authority_id: int | None = 
         if row["state"] in signal["counts"]:
             signal["counts"][row["state"]] += row["n"]
 
-    events = (
-        SourceEvent.objects.filter(transport="poll", authority_id__in=auth_ids, occurred_at__date__gte=window_start)
-        .annotate(day=TruncDate("occurred_at")).values("authority_id", "day", "ok").annotate(n=Count("id"))
-    )
-    for row in events:
+    poll_events = SourceEvent.objects.filter(
+        transport="poll", authority_id__in=auth_ids, occurred_at__date__gte=window_start
+    ).annotate(day=TruncDate("occurred_at"))
+
+    # Poll counts per day (drives the single-authority detail view).
+    for row in poll_events.values("authority_id", "day", "ok").annotate(n=Count("id")):
         signal = signals[(row["authority_id"], row["day"])]
-        signal["poll_ok" if row["ok"] else "poll_fail"] = True
         signal["counts"]["polls_ok" if row["ok"] else "polls_failed"] += row["n"]
+
+    # A day is in error only when its *latest* poll failed — an earlier failure
+    # that a later poll recovered from does not colour the day red.
+    latest_polls = (
+        poll_events.order_by("authority_id", "day", "-occurred_at", "-id")
+        .distinct("authority_id", "day")
+        .values("authority_id", "day", "ok")
+    )
+    for row in latest_polls:
+        signals[(row["authority_id"], row["day"])]["latest_poll_ok"] = row["ok"]
 
     single = authority_id is not None
     rows = []
@@ -93,7 +103,7 @@ def build_health_matrix(*, days: int = 30, now=None, authority_id: int | None = 
         entry = {
             "id": authority.id,
             "name": authority.name,
-            "country": authority.country,
+            "country": authority.country.code,
             "statuses": [_status(signals.get((authority.id, day))) for day in day_list],
             "detail_url": f"/admin/capagg-sources/{authority.id}/monitor/",
         }

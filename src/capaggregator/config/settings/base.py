@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "django_celery_results",
     "task_ferry",
+    "django_countries",
     # Django
     "django.contrib.admin",
     "django.contrib.auth",

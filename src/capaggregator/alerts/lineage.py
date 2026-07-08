@@ -147,5 +147,5 @@ def _simplify(geom, tolerance):
 def _attribute_countries(authority, geom) -> list[str]:
     """Issuing authority's country + every admin-0 boundary the geometry intersects.
     TODO: intersect with adminboundarymanager admin-0 once boundaries are loaded."""
-    countries = [authority.country.lower()]
+    countries = [authority.country.code.lower()]
     return countries

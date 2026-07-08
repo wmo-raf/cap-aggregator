@@ -1,89 +1,182 @@
 {% load i18n %}
-<section class="panel summary nice-padding" id="capagg-health-panel" data-api-url="{{ api_url }}">
+<section class="panel summary" id="capagg-health-panel" data-api-url="{{ api_url }}">
     <h2>{% trans "Ingestion health (last 30 days)" %}</h2>
 
     <style>
-        #capagg-health-panel .capagg-banner { padding: .5rem 1rem; margin-bottom: .5rem; border-radius: 4px;
-            background: #fbe9e7; color: #7a2e26; font-weight: 600; }
-        #capagg-health-panel .capagg-rows { max-height: 24rem; overflow-y: auto; }
-        #capagg-health-panel table { width: 100%; border-collapse: collapse; }
-        #capagg-health-panel td, #capagg-health-panel th { padding: 2px 4px; white-space: nowrap; }
-        #capagg-health-panel .capagg-cells { display: inline-flex; gap: 1px; }
-        #capagg-health-panel .capagg-cell { width: 8px; height: 16px; border-radius: 1px; background: #d9d9d9; }
-        #capagg-health-panel .capagg-cell.red { background: #d7352a; }
-        #capagg-health-panel .capagg-cell.orange { background: #e8830c; }
-        #capagg-health-panel .capagg-cell.green { background: #2e8b57; }
-        #capagg-health-panel .capagg-cell.alive { background: #a7d7b5; }
-        #capagg-health-panel .capagg-cell.gray { background: #d9d9d9; }
-        #capagg-health-panel .capagg-legend { font-size: .8em; color: #666; margin: .25rem 0; }
+        #capagg-health-panel {
+            border: 1px solid var(--w-color-border-furniture);
+            border-radius: 5px;
+            overflow: hidden;
+            background: var(--w-color-surface-page);
+        }
+
+        #capagg-health-panel > h2 {
+            margin: 0;
+            padding: .75rem 1rem;
+            font-size: 1.1em;
+            background: var(--w-color-grey-50);
+            color: var(--w-color-text-label);
+            border-bottom: 1px solid var(--w-color-border-furniture);
+        }
+
+        #capagg-health-panel .capagg-body {
+            padding: 1rem;
+        }
+
+        #capagg-health-panel .capagg-banner {
+            padding: .5rem 1rem;
+            margin-bottom: .5rem;
+            border-radius: 4px;
+            background: var(--w-color-critical-200);
+            color: var(--w-color-white);
+            font-weight: 600;
+        }
+
+        #capagg-health-panel .capagg-rows {
+            max-height: 24rem;
+            overflow-y: auto;
+        }
+
+        #capagg-health-panel table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #capagg-health-panel td, #capagg-health-panel th {
+            padding: .6rem .75rem;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--w-color-border-furniture);
+        }
+
+        #capagg-health-panel tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        #capagg-health-panel .capagg-cells {
+            display: inline-flex;
+            gap: 1px;
+        }
+
+        #capagg-health-panel .capagg-cell {
+            display: inline-block;
+            width: 8px;
+            height: 16px;
+            border-radius: 1px;
+            background: var(--w-color-grey-100);
+        }
+
+        #capagg-health-panel .capagg-cell.red {
+            background: var(--w-color-critical-200);
+        }
+
+        #capagg-health-panel .capagg-cell.orange {
+            background: var(--w-color-warning-100);
+        }
+
+        #capagg-health-panel .capagg-cell.green {
+            background: var(--w-color-positive-100);
+        }
+
+        #capagg-health-panel .capagg-cell.alive {
+            background: var(--w-color-positive-50, #a7d7b5);
+        }
+
+        #capagg-health-panel .capagg-cell.gray {
+            background: var(--w-color-grey-100);
+        }
+
+        #capagg-health-panel .capagg-legend {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .25rem 1rem;
+            font-size: .8em;
+            color: var(--w-color-grey-400);
+            margin: .25rem 0 .75rem;
+        }
+
+        #capagg-health-panel .capagg-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+        }
     </style>
 
-    <p class="capagg-legend">
-        <span class="capagg-cell red"></span> {% trans "feed error" %}
-        <span class="capagg-cell orange"></span> {% trans "quarantine" %}
-        <span class="capagg-cell green"></span> {% trans "alerts" %}
-        <span class="capagg-cell alive"></span> {% trans "alive, quiet" %}
-        <span class="capagg-cell gray"></span> {% trans "no signal" %}
-    </p>
+    <div class="capagg-body">
+        <div class="capagg-legend">
+            <span class="capagg-legend-item"><span class="capagg-cell red"></span> {% trans "Feed Error" %}</span>
+            <span class="capagg-legend-item"><span class="capagg-cell orange"></span> {% trans "Quarantine" %}</span>
+            <span class="capagg-legend-item"><span class="capagg-cell green"></span> {% trans "Alerts" %}</span>
+            <span class="capagg-legend-item"><span class="capagg-cell alive"></span> {% trans "Alive, Quiet" %}</span>
+            <span class="capagg-legend-item"><span class="capagg-cell gray"></span> {% trans "No Signal" %}</span>
+        </div>
 
-    <div class="capagg-banner" hidden></div>
-    <div class="capagg-rows"><table><tbody></tbody></table></div>
+        <div class="capagg-banner" hidden></div>
+        <div class="capagg-rows">
+            <table>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
 
     <script>
-    (function () {
-        var panel = document.getElementById("capagg-health-panel");
-        var apiUrl = panel.dataset.apiUrl;
-        var banner = panel.querySelector(".capagg-banner");
-        var tbody = panel.querySelector("tbody");
+        document.addEventListener("DOMContentLoaded", function () {
+            const panel = document.getElementById("capagg-health-panel");
+            const apiUrl = panel.dataset.apiUrl;
+            const banner = panel.querySelector(".capagg-banner");
+            const tbody = panel.querySelector("tbody");
 
-        function paint(data) {
-            if (data.mqtt_consumer_connected === false) {
-                banner.textContent = "{% trans 'MQTT consumer disconnected — push ingestion is stopped.' %}";
-                banner.hidden = false;
-            } else {
-                banner.hidden = true;
-            }
-            tbody.innerHTML = "";
-            (data.authorities || []).forEach(function (a) {
-                var tr = document.createElement("tr");
+            function paint(data) {
+                if (data.mqtt_consumer_connected === false) {
+                    banner.textContent = "{% trans 'MQTT consumer disconnected — push ingestion is stopped.' %}";
+                    banner.hidden = false;
+                } else {
+                    banner.hidden = true;
+                }
+                tbody.innerHTML = "";
+                (data.authorities || []).forEach(function (a) {
+                    const tr = document.createElement("tr");
 
-                var name = document.createElement("td");
-                name.textContent = a.name + " (" + (a.country || "").toUpperCase() + ")";
-                tr.appendChild(name);
+                    const name = document.createElement("td");
+                    name.textContent = a.name + " (" + (a.country || "").toUpperCase() + ")";
+                    tr.appendChild(name);
 
-                var cellsTd = document.createElement("td");
-                var cells = document.createElement("span");
-                cells.className = "capagg-cells";
-                (a.statuses || []).forEach(function (status, i) {
-                    var c = document.createElement("span");
-                    c.className = "capagg-cell " + status;
-                    c.title = data.days[i] + ": " + status;
-                    cells.appendChild(c);
+                    const cellsTd = document.createElement("td");
+                    const cells = document.createElement("span");
+                    cells.className = "capagg-cells";
+                    (a.statuses || []).forEach(function (status, i) {
+                        const c = document.createElement("span");
+                        c.className = "capagg-cell " + status;
+                        c.title = data.days[i] + ": " + status;
+                        cells.appendChild(c);
+                    });
+                    cellsTd.appendChild(cells);
+                    tr.appendChild(cellsTd);
+
+                    const actions = document.createElement("td");
+                    const link = document.createElement("a");
+                    link.className = "button button-small button-secondary";
+                    link.href = a.detail_url;
+                    link.textContent = "{% trans 'Detail' %}";
+                    actions.appendChild(link);
+                    tr.appendChild(actions);
+
+                    tbody.appendChild(tr);
                 });
-                cellsTd.appendChild(cells);
-                tr.appendChild(cellsTd);
+            }
 
-                var actions = document.createElement("td");
-                var link = document.createElement("a");
-                link.className = "button button-small button-secondary";
-                link.href = a.detail_url;
-                link.textContent = "{% trans 'Detail' %}";
-                actions.appendChild(link);
-                tr.appendChild(actions);
+            function refresh() {
+                fetch(apiUrl, {headers: {"Accept": "application/json"}})
+                    .then(function (r) {
+                        return r.json();
+                    })
+                    .then(paint)
+                    .catch(function () { /* transient; next tick retries */
+                    });
+            }
 
-                tbody.appendChild(tr);
-            });
-        }
-
-        function refresh() {
-            fetch(apiUrl, { headers: { "Accept": "application/json" } })
-                .then(function (r) { return r.json(); })
-                .then(paint)
-                .catch(function () { /* transient; next tick retries */ });
-        }
-
-        refresh();
-        setInterval(refresh, 60000);
-    })();
+            refresh();
+            setInterval(refresh, 60000);
+        });
     </script>
 </section>

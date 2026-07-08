@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
+from django_countries.fields import CountryField
 from wagtail.admin.panels import FieldPanel, MultiFieldPanel
 
 
@@ -30,10 +31,10 @@ class SourceAuthority(models.Model):
 
     name = models.CharField(max_length=255, verbose_name=_("Name"))
     slug = models.SlugField(max_length=100, unique=True, blank=True)
-    country = models.CharField(
+    country = CountryField(
         max_length=2,
-        verbose_name=_("Country (ISO 3166-1 alpha-2)"),
-        help_text=_("Primary country of the authority, lowercase, e.g. 'ke'"),
+        verbose_name=_("Country"),
+        help_text=_("Primary country of the authority."),
     )
     sender_values = ArrayField(
         models.CharField(max_length=255),
@@ -124,7 +125,7 @@ class SourceAuthority(models.Model):
         ordering = ["country", "name"]
 
     def __str__(self):
-        return f"{self.name} ({self.country.upper()})"
+        return f"{self.name} ({self.country.code})"
 
     def clean(self):
         # Local-only validation: no network I/O, so saving cannot hang or fail on
@@ -148,7 +149,7 @@ class SourceAuthority(models.Model):
         if not self.slug:
             self.slug = slugify(self.name)[:100]
         if not self.mqtt_topic:
-            self.mqtt_topic = f"cap/in/{self.country.lower()}/{self.slug}"
+            self.mqtt_topic = f"cap/in/{self.country.code.lower()}/{self.slug}"
         if not self.webhook_token:
             self.webhook_token = secrets.token_urlsafe(32)
         super().save(*args, **kwargs)
@@ -158,7 +159,7 @@ class SourceAuthority(models.Model):
         only the hash is stored. Broker auth syncs automatically on save."""
         from .mosquitto import hash_password
 
-        self.mqtt_username = f"{self.country.lower()}-{self.slug}"[:100]
+        self.mqtt_username = f"{self.country.code.lower()}-{self.slug}"[:100]
         password = secrets.token_urlsafe(24)
         self.mqtt_password_hash = hash_password(password)
         self.save(update_fields=["mqtt_username", "mqtt_password_hash"])

@@ -59,6 +59,28 @@ class HealthMatrixStatusTests(TestCase):
 
         self.assertEqual(self._today_status(matrix), "red")
 
+    def test_day_is_red_when_the_latest_poll_failed(self):
+        now = datetime(2026, 7, 8, 12, 0, tzinfo=dt_tz.utc)
+        create_source_event(self.authority, ok=True, transport="poll",
+                            occurred_at=datetime(2026, 7, 8, 9, 0, tzinfo=dt_tz.utc))
+        create_source_event(self.authority, ok=False, transport="poll",
+                            occurred_at=datetime(2026, 7, 8, 11, 0, tzinfo=dt_tz.utc))
+
+        matrix = build_health_matrix(days=30, now=now)
+
+        self.assertEqual(self._today_status(matrix), "red")
+
+    def test_earlier_failure_recovered_by_a_later_poll_is_not_red(self):
+        now = datetime(2026, 7, 8, 12, 0, tzinfo=dt_tz.utc)
+        create_source_event(self.authority, ok=False, transport="poll",
+                            occurred_at=datetime(2026, 7, 8, 9, 0, tzinfo=dt_tz.utc))
+        create_source_event(self.authority, ok=True, transport="poll",
+                            occurred_at=datetime(2026, 7, 8, 11, 0, tzinfo=dt_tz.utc))
+
+        matrix = build_health_matrix(days=30, now=now)
+
+        self.assertEqual(self._today_status(matrix), "alive")
+
     def test_successful_poll_with_no_alerts_is_alive(self):
         create_source_event(self.authority, ok=True, transport="poll", occurred_at=self.now)
 
