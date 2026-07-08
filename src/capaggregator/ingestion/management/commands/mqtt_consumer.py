@@ -24,18 +24,37 @@ from django.core.management.base import BaseCommand
 logger = logging.getLogger(__name__)
 
 
+def on_connect(client, userdata, flags, reason_code, properties=None):
+    """paho on_connect: record broker connectivity (authority-null, global) and,
+    on success, subscribe. reason_code 0 = connected."""
+    from capaggregator.ingestion.models import SourceEvent
+
+    connected = reason_code == 0
+    SourceEvent.objects.create(
+        authority=None, transport="mqtt", ok=connected,
+        error="" if connected else f"connect failed: {reason_code}",
+    )
+    if connected:
+        client.subscribe(settings.MQTT_IN_TOPIC, qos=1)
+        logger.info("Subscribed to %s", settings.MQTT_IN_TOPIC)
+    else:
+        logger.error("MQTT connect failed: %s", reason_code)
+
+
+def on_disconnect(client, userdata, *args):
+    """paho on_disconnect: record the disconnect so the health dashboard can flag
+    that push ingestion has stopped."""
+    from capaggregator.ingestion.models import SourceEvent
+
+    SourceEvent.objects.create(authority=None, transport="mqtt", ok=False, error="disconnected")
+    logger.warning("MQTT consumer disconnected")
+
+
 class Command(BaseCommand):
     help = "Run the MQTT → Celery ingestion consumer"
 
     def handle(self, *args, **options):
         from capaggregator.ingestion.tasks import ingest_raw_message
-
-        def on_connect(client, userdata, flags, reason_code, properties=None):
-            if reason_code == 0:
-                client.subscribe(settings.MQTT_IN_TOPIC, qos=1)
-                logger.info("Subscribed to %s", settings.MQTT_IN_TOPIC)
-            else:
-                logger.error("MQTT connect failed: %s", reason_code)
 
         def on_message(client, userdata, msg):
             try:
@@ -53,6 +72,7 @@ class Command(BaseCommand):
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="capagg-consumer", clean_session=False)
         client.username_pw_set(settings.MQTT_CONSUMER_USERNAME, settings.MQTT_CONSUMER_PASSWORD)
         client.on_connect = on_connect
+        client.on_disconnect = on_disconnect
         client.on_message = on_message
         client.reconnect_delay_set(min_delay=1, max_delay=60)
 
