@@ -126,6 +126,11 @@ def _check_sender(tree, raw, report):
     if not raw.authority:
         report.error("sender", "message could not be attributed to a registered authority")
         return
+    if not raw.authority.sender_values:
+        # No allow-list configured — attribution already comes from the
+        # transport (MQTT topic, webhook token, or polled feed URL), so any
+        # <sender> is accepted.
+        return
     sender = tree.findtext(f"{CAP}sender", default="")
     if sender not in raw.authority.sender_values:
         report.error("sender", f"sender '{sender}' not registered for authority '{raw.authority.slug}'")
