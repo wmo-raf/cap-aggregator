@@ -5,7 +5,13 @@ from wagtail.permission_policies import ModelPermissionPolicy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
-from .admin_views import backfill_upload, health_dashboard_api, quarantine_dismiss, quarantine_revalidate
+from .admin_views import (
+    authority_monitor,
+    backfill_upload,
+    health_dashboard_api,
+    quarantine_dismiss,
+    quarantine_revalidate,
+)
 from .models import QuarantinedMessage, RawMessage, SourceEvent
 
 
@@ -71,6 +77,7 @@ def register_backfill_admin_url():
         path("capagg-quarantine/revalidate/", quarantine_revalidate, name="capagg_ingestion_quarantine_revalidate"),
         path("capagg-quarantine/<int:pk>/dismiss/", quarantine_dismiss, name="capagg_ingestion_quarantine_dismiss"),
         path("capagg-health/dashboard.json", health_dashboard_api, name="capagg_ingestion_health_api"),
+        path("capagg-sources/<int:pk>/monitor/", authority_monitor, name="capagg_ingestion_authority_monitor"),
     ]
 
 
