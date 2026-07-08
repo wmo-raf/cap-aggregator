@@ -52,13 +52,14 @@ class IngestionMonitorViewTests(TestCase):
         )
 
     def test_list_filters_by_authority(self):
-        self._raw(self.authority, "a" * 64)
-        self._raw(self.other, "b" * 64)
+        mine = self._raw(self.authority, "a" * 64)
+        other = self._raw(self.other, "b" * 64)
 
         response = self.client.get(reverse(self.LIST_URL_NAME), {"authority": self.authority.id})
 
-        self.assertContains(response, "a" * 64)
-        self.assertNotContains(response, "b" * 64)
+        listed_ids = [m.id for m in response.context["object_list"]]
+        self.assertIn(mine.id, listed_ids)
+        self.assertNotIn(other.id, listed_ids)
 
     def test_monitor_requires_login(self):
         self.client.logout()
