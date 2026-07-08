@@ -11,6 +11,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
@@ -19,6 +20,23 @@ from wagtail.admin.auth import require_admin_access
 
 from .forms import BackfillUploadForm
 from .models import QuarantinedMessage
+
+
+@require_admin_access
+def health_dashboard_api(request):
+    """Staff-gated JSON for the health panel + per-authority monitor strip."""
+    from .health import build_health_matrix, mqtt_consumer_connected
+
+    try:
+        days = int(request.GET.get("days") or 30)
+    except ValueError:
+        days = 30
+    days = max(1, min(days, 90))
+
+    authority_id = request.GET.get("authority")
+    matrix = build_health_matrix(days=days, authority_id=int(authority_id) if authority_id else None)
+    matrix["mqtt_consumer_connected"] = mqtt_consumer_connected()
+    return JsonResponse(matrix)
 
 
 def _store_upload(upload) -> Path:
