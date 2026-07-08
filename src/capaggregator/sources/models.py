@@ -39,8 +39,12 @@ class SourceAuthority(models.Model):
     sender_values = ArrayField(
         models.CharField(max_length=255),
         default=list,
+        blank=True,
         verbose_name=_("CAP sender values"),
-        help_text=_("Accepted <sender> values. Alerts whose sender does not match are quarantined."),
+        help_text=_(
+            "Accepted <sender> values. Alerts whose sender does not match are quarantined. "
+            "Leave empty to skip the sender check (attribution still comes from the transport)."
+        ),
     )
     contact_email = models.EmailField(blank=True, verbose_name=_("Contact email"))
     active = models.BooleanField(default=True)
@@ -130,8 +134,8 @@ class SourceAuthority(models.Model):
     def clean(self):
         # Local-only validation: no network I/O, so saving cannot hang or fail on
         # a slow/unreachable feed. Feed type is sniffed later, during polling.
-        if not self.sender_values:
-            raise ValidationError({"sender_values": _("At least one CAP sender value is required.")})
+        # sender_values is optional: an empty allow-list simply skips the sender
+        # check at ingestion (see ingestion.validators._check_sender).
         if not self.feed_url:
             raise ValidationError({"feed_url": _("A CAP RSS/ATOM feed URL is required for every authority.")})
 
