@@ -1,0 +1,86 @@
+{% extends "wagtailadmin/base.html" %}
+{% load i18n %}
+{% block titletag %}{% blocktrans with name=authority.name %}Monitor: {{ name }}{% endblocktrans %}{% endblock %}
+{% block content %}
+    {% include "wagtailadmin/shared/header.html" with title=authority.name subtitle="Ingestion monitor" icon="download" %}
+    <div class="nice-padding">
+
+        {# 1. Header facts #}
+        <table class="listing">
+            <tr><th>{% trans "Country" %}</th><td>{{ authority.country|upper }}</td></tr>
+            <tr><th>{% trans "Active" %}</th><td>{{ authority.active|yesno }}</td></tr>
+            <tr><th>{% trans "Feed URL" %}</th><td><code>{{ authority.feed_url }}</code> ({{ authority.feed_type_detected|default:"?" }})</td></tr>
+            <tr><th>{% trans "MQTT credentials" %}</th><td>{{ authority.has_mqtt_credentials|yesno:"issued,not issued" }}</td></tr>
+            <tr>
+                <th>{% trans "Last poll" %}</th>
+                <td>
+                    {% if last_poll %}
+                        {% if last_poll.ok %}{% trans "OK" %}{% else %}{% trans "FAILED" %}: {{ last_poll.error }}{% endif %}
+                        — {{ last_poll.occurred_at|timesince }} {% trans "ago" %}
+                    {% else %}{% trans "never polled" %}{% endif %}
+                </td>
+            </tr>
+        </table>
+        <p>
+            <a href="{% url 'capagg_sources_issue_mqtt' authority.pk %}">{% trans "Issue / regenerate MQTT credentials" %}</a>
+        </p>
+
+        {# 2. Activity strip (fetched client-side from the health endpoint, single-authority mode) #}
+        <div id="activity-strip" data-api-url="{{ health_api_url }}"></div>
+
+        {# 3. Filter bar #}
+        <form method="get" class="nice-padding">
+            <label>{% trans "State" %}
+                <select name="state">
+                    <option value="">{% trans "any" %}</option>
+                    {% for value, label in state_choices %}
+                        <option value="{{ value }}" {% if value == filters.state %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>{% trans "Transport" %}
+                <select name="transport">
+                    <option value="">{% trans "any" %}</option>
+                    {% for value, label in transport_choices %}
+                        <option value="{{ value }}" {% if value == filters.transport %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>{% trans "Since" %} <input type="date" name="since" value="{{ filters.since }}"></label>
+            <button type="submit" class="button">{% trans "Filter" %}</button>
+        </form>
+
+        {# 4. Recent messages #}
+        <h2>{% trans "Recent messages" %} <a href="{{ messages_all_url }}">{% trans "view all" %}</a></h2>
+        <table class="listing">
+            <thead><tr><th>{% trans "State" %}</th><th>{% trans "Transport" %}</th><th>{% trans "Received" %}</th><th>{% trans "Latency" %}</th><th>sha256</th></tr></thead>
+            <tbody>
+            {% for m in recent_messages %}
+                <tr><td>{{ m.state }}</td><td>{{ m.transport }}</td><td>{{ m.received_at }}</td><td>{{ m.ingest_latency|default:"—" }}</td><td><code>{{ m.sha256 }}</code></td></tr>
+            {% empty %}
+                <tr><td colspan="5">{% trans "No messages." %}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {# 5. Transport events #}
+        <h2>{% trans "Transport events" %} <a href="{{ events_all_url }}">{% trans "view all" %}</a></h2>
+        <table class="listing">
+            <thead><tr><th>{% trans "Time" %}</th><th>{% trans "Transport" %}</th><th>{% trans "OK" %}</th><th>{% trans "Error" %}</th></tr></thead>
+            <tbody>
+            {% for e in recent_events %}
+                <tr><td>{{ e.occurred_at }}</td><td>{{ e.transport }}</td><td>{{ e.ok|yesno }}</td><td>{{ e.error }}</td></tr>
+            {% empty %}
+                <tr><td colspan="4">{% trans "No events." %}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {# 6. Quarantine strip #}
+        <h2>{% trans "Quarantine" %}</h2>
+        <p>
+            {% blocktrans count count=quarantine_pending_count %}{{ count }} pending quarantined message.{% plural %}{{ count }} pending quarantined messages.{% endblocktrans %}
+            <a href="{{ quarantine_all_url }}">{% trans "open inbox" %}</a>
+        </p>
+    </div>
+{% endblock %}

@@ -39,6 +39,57 @@ def health_dashboard_api(request):
     return JsonResponse(matrix)
 
 
+@require_admin_access
+def authority_monitor(request, pk):
+    """Per-authority ingestion monitor: header, activity strip, filtered message +
+    transport-event tables, and quarantine backlog."""
+    from django.urls import reverse
+
+    from capaggregator.sources.models import SourceAuthority
+
+    from .models import RawMessage, SourceEvent
+
+    authority = get_object_or_404(SourceAuthority, pk=pk)
+
+    state = request.GET.get("state") or ""
+    transport = request.GET.get("transport") or ""
+    since = request.GET.get("since") or ""
+
+    messages_qs = RawMessage.objects.filter(authority=authority)
+    events_qs = SourceEvent.objects.filter(authority=authority)
+    if state:
+        messages_qs = messages_qs.filter(state=state)
+    if transport:
+        messages_qs = messages_qs.filter(transport=transport)
+        events_qs = events_qs.filter(transport=transport)
+    if since:
+        messages_qs = messages_qs.filter(received_at__date__gte=since)
+        events_qs = events_qs.filter(occurred_at__date__gte=since)
+
+    last_poll = SourceEvent.objects.filter(authority=authority, transport="poll").order_by("-occurred_at", "-id").first()
+
+    context = {
+        "authority": authority,
+        "last_poll": last_poll,
+        "quarantine_pending_count": QuarantinedMessage.objects.filter(
+            raw_message__authority=authority, status__in=["pending", "notified"]
+        ).count(),
+        "recent_messages": messages_qs[:50],
+        "recent_events": events_qs[:50],
+        "health_api_url": reverse("capagg_ingestion_health_api") + f"?authority={authority.id}",
+        "filters": {"state": state, "transport": transport, "since": since},
+        "state_choices": RawMessage.STATES,
+        "transport_choices": RawMessage.TRANSPORTS,
+        "messages_all_url": reverse("wagtailsnippets_capagg_ingestion_rawmessage:list") + f"?authority={authority.id}",
+        "events_all_url": reverse("wagtailsnippets_capagg_ingestion_sourceevent:list") + f"?authority={authority.id}",
+        "quarantine_all_url": (
+            reverse("wagtailsnippets_capagg_ingestion_quarantinedmessage:list")
+            + f"?raw_message__authority={authority.id}"
+        ),
+    }
+    return render(request, "capagg_ingestion/authority_monitor.html", context)
+
+
 def _store_upload(upload) -> Path:
     """Persist an uploaded file to a unique path under MEDIA_ROOT/backfills/."""
     target_dir = Path(settings.MEDIA_ROOT) / "backfills" / uuid.uuid4().hex
