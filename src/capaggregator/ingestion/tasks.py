@@ -156,6 +156,22 @@ def sweep_unprocessed(self):
 
 
 @shared_task(bind=True, acks_late=True)
+def purge_old_source_events(self):
+    """Daily retention: delete transport telemetry older than 90 days so the
+    SourceEvent table stays bounded (the dashboard only ever reads 30 days)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from .models import SourceEvent
+
+    cutoff = timezone.now() - timedelta(days=90)
+    deleted, _ = SourceEvent.objects.filter(occurred_at__lt=cutoff).delete()
+    if deleted:
+        logger.info("Purged %s SourceEvent rows older than 90 days", deleted)
+
+
+@shared_task(bind=True, acks_late=True)
 def poll_all_feeds(self):
     """Celery-beat entry point: fan out one poll_feed per authority that is due.
 
@@ -213,6 +229,10 @@ def poll_feed(self, authority_id: int):
         logger.warning("Feed poll failed for %s: %s", authority.slug, ex)
         authority.feed_last_polled = timezone.now()
         authority.save(update_fields=["feed_last_polled"])
+
+        from .models import SourceEvent
+
+        SourceEvent.objects.create(authority=authority, transport="poll", ok=False, error=str(ex))
         return
 
     fetched = 0
@@ -236,5 +256,9 @@ def poll_feed(self, authority_id: int):
 
     authority.feed_last_polled = timezone.now()
     authority.save(update_fields=["feed_etag", "feed_last_modified", "feed_type_detected", "feed_last_polled"])
+
+    from .models import SourceEvent
+
+    SourceEvent.objects.create(authority=authority, transport="poll", ok=True, detail={"entries_fetched": fetched})
     if fetched:
         logger.info("Feed poll %s: %s new entries enqueued", authority.slug, fetched)

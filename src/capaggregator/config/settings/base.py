@@ -219,6 +219,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "capaggregator.ingestion.tasks.sweep_unprocessed",
         "schedule": 300,
     },
+    "purge-old-source-events": {
+        "task": "capaggregator.ingestion.tasks.purge_old_source_events",
+        "schedule": 86400,
+    },
 }
 
 # --- django-task-ferry (async jobs with progress, served at /api/jobs/) ---
