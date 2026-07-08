@@ -19,12 +19,12 @@ class AuthorityValidationTests(TestCase):
         with patch("capaggregator.sources.feeds.requests.get", side_effect=AssertionError("network call")):
             authority.full_clean()  # must not raise, must not hit the network
 
-    def test_validation_requires_at_least_one_sender_value(self):
+    def test_validation_allows_an_empty_sender_allowlist(self):
         authority = SourceAuthority(name="X", country="ke", sender_values=[], feed_url="https://x.test/rss.xml")
 
-        with self.assertRaises(ValidationError) as ctx:
-            authority.full_clean()
-        self.assertIn("sender_values", ctx.exception.message_dict)
+        authority.full_clean()  # must not raise — sender_values is optional
+        authority.save()
+        self.assertEqual(SourceAuthority.objects.get(pk=authority.pk).sender_values, [])
 
     def test_validation_requires_a_feed_url(self):
         authority = SourceAuthority(name="X", country="ke", sender_values=["sender@x"], feed_url="")

@@ -25,3 +25,27 @@ class IngestPipelineTests(TestCase):
         raw = RawMessage.objects.get(id=result["raw_id"])
         self.assertEqual(raw.state, "stored")
         self.assertTrue(Alert.objects.filter(id=result["alert_id"]).exists())
+
+    @patch("capaggregator.alerts.tasks.resolve_lineage")
+    def test_empty_sender_allowlist_accepts_any_sender(self, _resolve_lineage):
+        # An authority with no sender values skips the sender check entirely —
+        # attribution already comes from the transport (topic/token/feed URL).
+        authority = create_source_authority(name="Uganda Met", country="ug", sender_values=[])
+
+        result = ingest_raw_message(
+            transport="manual", xml=cap_alert_xml(sender="anyone@example.test"), authority_id=authority.id
+        )
+
+        self.assertEqual(result["state"], "stored")
+        raw = RawMessage.objects.get(id=result["raw_id"])
+        self.assertEqual(raw.state, "stored")
+        self.assertTrue(Alert.objects.filter(id=result["alert_id"]).exists())
+
+    def test_populated_sender_allowlist_still_quarantines_a_mismatched_sender(self):
+        result = ingest_raw_message(
+            transport="manual", xml=cap_alert_xml(sender="unregistered@x.test"), authority_id=self.authority.id
+        )
+
+        self.assertEqual(result["state"], "quarantined")
+        raw = RawMessage.objects.get(id=result["raw_id"])
+        self.assertEqual(raw.state, "quarantined")
