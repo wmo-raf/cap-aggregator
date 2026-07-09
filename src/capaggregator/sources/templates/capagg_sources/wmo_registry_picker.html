@@ -63,6 +63,20 @@
             border-bottom: none;
         }
 
+        .capagg-table .capagg-section th {
+            padding-top: 1rem;
+            font-size: 1rem;
+            color: var(--w-color-text-label);
+            border-bottom: 2px solid var(--w-color-border-furniture);
+        }
+
+        .capagg-table .capagg-subsection td {
+            padding-left: 1.5rem;
+            font-weight: 600;
+            color: var(--w-color-grey-400);
+            background: var(--w-color-grey-50);
+        }
+
         .capagg-badge {
             display: inline-block;
             padding: .1rem .5rem;
@@ -147,19 +161,31 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for row in rows %}
-                                        <tr data-registry-row data-search="{{ row.entry.country_name|lower }} {{ row.entry.name|lower }}">
-                                            <td>
-                                                {% if row.selectable %}
-                                                    <input type="checkbox" name="guid" value="{{ row.entry.guid }}" data-registry-checkbox aria-label="{% trans 'Select' %} {{ row.entry.name }}">
-                                                {% endif %}
-                                            </td>
-                                            <td>{{ row.entry.country_name|default:"—" }}</td>
-                                            <td>{{ row.entry.name }}</td>
-                                            <td>
-                                                <span class="capagg-badge capagg-badge--{{ row.status|lower }}">{{ row.status_label }}</span>
-                                            </td>
+                                    {% for group in groups %}
+                                        <tr class="capagg-section" data-registry-section>
+                                            <th colspan="4">{{ group.label }}</th>
                                         </tr>
+                                        {% for sub in group.subgroups %}
+                                            {% if sub.label %}
+                                                <tr class="capagg-subsection" data-registry-subsection>
+                                                    <td colspan="4">{{ sub.label }}</td>
+                                                </tr>
+                                            {% endif %}
+                                            {% for row in sub.rows %}
+                                                <tr data-registry-row data-search="{{ row.entry.country_name|lower }} {{ row.entry.name|lower }}">
+                                                    <td>
+                                                        {% if row.selectable %}
+                                                            <input type="checkbox" name="guid" value="{{ row.entry.guid }}" data-registry-checkbox aria-label="{% trans 'Select' %} {{ row.entry.name }}">
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ row.entry.country_name|default:"—" }}</td>
+                                                    <td>{{ row.entry.name }}</td>
+                                                    <td>
+                                                        <span class="capagg-badge capagg-badge--{{ row.status|lower }}">{{ row.status_label }}</span>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        {% endfor %}
                                     {% empty %}
                                         <tr><td colspan="4">{% trans "No entries returned by the registry." %}</td></tr>
                                     {% endfor %}
@@ -198,12 +224,35 @@
                 addButton.hidden = selected === 0;
             }
 
+            const tableRows = form.querySelectorAll("tbody tr");
+
             function filterRows() {
                 const query = search.value.trim().toLowerCase();
                 rows.forEach(function (row) {
                     const haystack = row.getAttribute("data-search") || "";
                     row.hidden = query !== "" && !haystack.includes(query);
                 });
+                hideEmptyHeaders();
+            }
+
+            function hideEmptyHeaders() {
+                // Walk bottom-up: a subsection/section header stays visible only if a
+                // data row below it (before the next header of the same level) is shown.
+                let sectionHasRows = false;
+                let subsectionHasRows = false;
+                for (let i = tableRows.length - 1; i >= 0; i -= 1) {
+                    const tr = tableRows[i];
+                    if (tr.hasAttribute("data-registry-subsection")) {
+                        tr.hidden = !subsectionHasRows;
+                        subsectionHasRows = false;
+                    } else if (tr.hasAttribute("data-registry-section")) {
+                        tr.hidden = !sectionHasRows;
+                        sectionHasRows = false;
+                    } else if (tr.hasAttribute("data-registry-row") && !tr.hidden) {
+                        sectionHasRows = true;
+                        subsectionHasRows = true;
+                    }
+                }
             }
 
             checkboxes.forEach(function (box) {

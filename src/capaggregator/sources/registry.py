@@ -118,12 +118,12 @@ STATUS_NO_FEED = "NO_FEED"
 STATUS_INVALID_COUNTRY = "INVALID_COUNTRY"
 
 STATUS_LABELS = {
-    STATUS_NEW: "NEW",
-    STATUS_ALREADY_EXISTS: "ALREADY EXISTS",
-    STATUS_UP_TO_DATE: "UP TO DATE",
-    STATUS_NEEDS_UPDATE: "NEEDS UPDATE",
-    STATUS_NO_FEED: "NO FEED",
-    STATUS_INVALID_COUNTRY: "INVALID COUNTRY",
+    STATUS_NEW: "Not Added",
+    STATUS_ALREADY_EXISTS: "Added",
+    STATUS_UP_TO_DATE: "Up to date",
+    STATUS_NEEDS_UPDATE: "Needs update",
+    STATUS_NO_FEED: "No feed",
+    STATUS_INVALID_COUNTRY: "Invalid country",
 }
 
 
@@ -147,21 +147,68 @@ def derive_registry_view(entries: list[RegistryEntry]) -> list[RegistryRow]:
     return [_derive_row(entry) for entry in entries]
 
 
-def sort_registry_rows(rows: list[RegistryRow]) -> list[RegistryRow]:
-    """Presentation order: rows already backed by an authority first, then NEW,
-    then non-addable rows — each group by country name, then authority name.
-    Kept out of derive_registry_view so status derivation stays order-free."""
-    return sorted(rows, key=_sort_key)
+@dataclass
+class RegistrySubgroup:
+    """Rows under one sub-region (label=None for a flat section)."""
+
+    label: str | None
+    rows: list[RegistryRow]
 
 
-def _sort_key(row: RegistryRow):
-    if row.authority_id is not None:
-        group = 0
-    elif row.status == STATUS_NEW:
-        group = 1
-    else:
-        group = 2
-    return (group, row.entry.country_name.lower(), row.entry.name.lower())
+@dataclass
+class RegistryGroup:
+    """One picker section: the flat 'Added'/'Unavailable' sections, or one region."""
+
+    kind: str  # "added" | "region" | "unavailable"
+    label: str
+    subgroups: list[RegistrySubgroup]
+
+
+def group_registry_rows(rows: list[RegistryRow]) -> list[RegistryGroup]:
+    """Arrange rows into display sections: a flat 'Added' section (in-system rows)
+    first, then Region -> Sub-region for the not-added rows (regions alphabetical,
+    an 'Other' catch-all last), then a flat 'Unavailable' section (No feed /
+    Invalid country) at the bottom. Rows within a leaf are by country then name.
+    Presentation only — kept out of derive_registry_view."""
+    added: list[RegistryRow] = []
+    unavailable: list[RegistryRow] = []
+    by_region: dict[str, dict[str, list[RegistryRow]]] = {}
+
+    for row in rows:
+        if row.authority_id is not None:
+            added.append(row)
+        elif row.status in (STATUS_NO_FEED, STATUS_INVALID_COUNTRY):
+            unavailable.append(row)
+        else:
+            region, sub_region = _region_by_code().get(row.entry.country or "", ("", ""))
+            region = region or "Other"
+            by_region.setdefault(region, {}).setdefault(sub_region or region, []).append(row)
+
+    groups: list[RegistryGroup] = []
+    if added:
+        groups.append(RegistryGroup("added", "Added", [RegistrySubgroup(None, _by_country(added))]))
+
+    named = sorted(r for r in by_region if r != "Other")
+    for region in named + (["Other"] if "Other" in by_region else []):
+        subs = by_region[region]
+        subgroups = [RegistrySubgroup(sub, _by_country(subs[sub])) for sub in sorted(subs)]
+        groups.append(RegistryGroup("region", region, subgroups))
+
+    if unavailable:
+        groups.append(RegistryGroup("unavailable", "Unavailable", [RegistrySubgroup(None, _by_country(unavailable))]))
+    return groups
+
+
+def _by_country(rows: list[RegistryRow]) -> list[RegistryRow]:
+    return sorted(rows, key=lambda r: (r.entry.country_name.lower(), r.entry.name.lower()))
+
+
+@lru_cache(maxsize=1)
+def _region_by_code() -> dict[str, tuple[str, str]]:
+    """alpha-2 -> (region, sub-region) from the vendored ISO 3166 / UN M49 data."""
+    from .countries import ALL
+
+    return {c["alpha-2"]: (c["region"], c["sub-region"]) for c in ALL}
 
 
 def _derive_row(entry: RegistryEntry) -> RegistryRow:

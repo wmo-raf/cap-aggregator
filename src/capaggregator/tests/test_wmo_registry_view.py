@@ -27,7 +27,7 @@ class WmoRegistryPickerViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "National Center for Meteorology")
-        self.assertContains(response, "NEW")
+        self.assertContains(response, "Not Added")
 
     @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
     def test_a_non_selectable_row_has_no_checkbox(self, fetch):
@@ -36,7 +36,7 @@ class WmoRegistryPickerViewTests(TestCase):
         response = self.client.get(self._url())
 
         # The Syrian entry has no capAlertFeed, so it must not be selectable.
-        self.assertContains(response, "NO FEED")
+        self.assertContains(response, "No feed")
         self.assertNotContains(response, 'value="urn:oid:2.49.0.0.760.0"')
 
     @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
