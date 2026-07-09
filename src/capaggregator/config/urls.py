@@ -24,6 +24,10 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
+    from capaggregator.tiles.proto_tiles import proto_tiles  # PROTOTYPE — delete with the file
+
     urlpatterns = (
-        static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + urlpatterns
+        static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+        + [path("proto/tiles/", proto_tiles, name="proto_tiles")]  # PROTOTYPE — throwaway
+        + urlpatterns
     )

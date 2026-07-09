@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PROTOTYPE — Martin tiles</title>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <style>
+        html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+        #map { position: absolute; inset: 0; }
+        .panel {
+            position: absolute; top: 10px; left: 10px; z-index: 1;
+            background: rgba(255,255,255,.95); padding: 12px 14px; border-radius: 8px;
+            box-shadow: 0 1px 6px rgba(0,0,0,.3); width: 320px; font-size: 13px;
+        }
+        .panel h1 { font-size: 14px; margin: 0 0 8px; color: #b00; }
+        .panel .warn { font-size: 11px; color: #b00; margin-bottom: 8px; }
+        #t-label { font-weight: 600; }
+        input[type=range] { width: 100%; }
+        .count { margin-top: 8px; }
+        .count b { font-size: 16px; }
+        .legend span { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }
+        .legend i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+        pre { background: #f4f4f4; padding: 6px; border-radius: 4px; max-height: 180px;
+              overflow: auto; margin: 8px 0 0; white-space: pre-wrap; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="panel">
+        <h1>PROTOTYPE — Martin tile rendering</h1>
+        <div class="warn">throwaway; delete when verified</div>
+        <div>Time <span id="t-label"></span></div>
+        <input type="range" id="t-slider" min="0" max="0" step="300">
+        <div class="legend" style="margin-top:8px;">
+            <span><i style="background:#7a0177"></i>Extreme</span>
+            <span><i style="background:#e31a1c"></i>Severe</span>
+            <span><i style="background:#fd8d3c"></i>Moderate</span>
+            <span><i style="background:#fecc5c"></i>Minor</span>
+        </div>
+        <div class="count">Alert polygons in view: <b id="count">–</b></div>
+        <pre id="props">Click an alert to inspect its properties…</pre>
+    </div>
+
+    <script>
+        const T_MIN = "{{ t_min }}";
+        const T_MAX = "{{ t_max }}";
+        const T_DEFAULT = "{{ t_default }}";
+
+        const toEpoch = (iso) => Math.floor(new Date(iso).getTime() / 1000);
+        // Round to 5-minute buckets so URLs hit the nginx tile cache.
+        const bucket = (epoch) => Math.floor(epoch / 300) * 300;
+        const toIso = (epoch) => new Date(epoch * 1000).toISOString();
+
+        const slider = document.getElementById("t-slider");
+        const tLabel = document.getElementById("t-label");
+        const countEl = document.getElementById("count");
+        const propsEl = document.getElementById("props");
+
+        slider.min = bucket(toEpoch(T_MIN));
+        slider.max = bucket(toEpoch(T_MAX));
+        slider.value = bucket(toEpoch(T_DEFAULT));
+
+        // Absolute URL — MapLibre's tile worker uses `new Request(url)`, which
+        // rejects relative paths.
+        const tileUrl = (iso) => `${location.origin}/martin/alerts/{z}/{x}/{y}?t=${encodeURIComponent(iso)}`;
+
+        const map = new maplibregl.Map({
+            container: "map",
+            style: {
+                version: 8,
+                sources: {
+                    osm: {
+                        type: "raster",
+                        tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                        tileSize: 256, attribution: "© OpenStreetMap",
+                    },
+                    alerts: { type: "vector", tiles: [tileUrl(toIso(+slider.value))] },
+                },
+                layers: [
+                    { id: "osm", type: "raster", source: "osm" },
+                    {
+                        id: "alerts-fill", type: "fill", source: "alerts", "source-layer": "alerts",
+                        paint: {
+                            "fill-color": ["match", ["get", "severity"],
+                                "Extreme", "#7a0177", "Severe", "#e31a1c",
+                                "Moderate", "#fd8d3c", "Minor", "#fecc5c", "#888"],
+                            "fill-opacity": 0.5,
+                        },
+                    },
+                    {
+                        id: "alerts-outline", type: "line", source: "alerts", "source-layer": "alerts",
+                        paint: { "line-color": "#333", "line-width": 0.6 },
+                    },
+                    {
+                        id: "alert-centroids", type: "circle", source: "alerts", "source-layer": "alert_centroids",
+                        paint: {
+                            "circle-radius": 4, "circle-color": "#111",
+                            "circle-stroke-color": "#fff", "circle-stroke-width": 1,
+                        },
+                    },
+                ],
+            },
+            center: [20, 5], zoom: 3,
+        });
+
+        function setTime() {
+            const iso = toIso(+slider.value);
+            tLabel.textContent = iso;
+            const src = map.getSource("alerts");
+            if (src) {
+                src.setTiles([tileUrl(iso)]);
+            }
+        }
+
+        function updateCount() {
+            const feats = map.queryRenderedFeatures({ layers: ["alerts-fill"] });
+            // de-dupe by id (a polygon can span multiple tiles)
+            countEl.textContent = new Set(feats.map((f) => f.properties.id)).size;
+        }
+
+        slider.addEventListener("input", setTime);
+        map.on("load", () => { setTime(); updateCount(); });
+        map.on("idle", updateCount);
+        map.on("click", "alerts-fill", (e) => {
+            propsEl.textContent = JSON.stringify(e.features[0].properties, null, 2);
+        });
+        map.on("mouseenter", "alerts-fill", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "alerts-fill", () => { map.getCanvas().style.cursor = ""; });
+    </script>
+</body>
+</html>
