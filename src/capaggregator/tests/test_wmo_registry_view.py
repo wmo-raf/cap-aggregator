@@ -65,6 +65,21 @@ class WmoRegistryPickerViewTests(TestCase):
 
         fetch.assert_called_once_with(refresh=True)
 
+    @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
+    def test_posting_reports_the_linked_count_in_the_message(self, fetch):
+        from django.contrib.messages import get_messages
+
+        from .factories import create_source_authority
+
+        fetch.return_value = (WMO_REGISTRY_SAMPLE_XML, None)
+        # A manually-added authority on Saudi's feed makes that entry ALREADY_EXISTS.
+        create_source_authority(name="Existing NCM", feed_url="https://ncm.gov.sa/en/cap-alerts")
+
+        response = self.client.post(self._url(), {"guid": ["urn:oid:2.49.0.0.682.0"]})
+
+        text = " ".join(str(m) for m in get_messages(response.wsgi_request))
+        self.assertIn("1 linked", text)
+
     def test_requires_login(self):
         self.client.logout()
 

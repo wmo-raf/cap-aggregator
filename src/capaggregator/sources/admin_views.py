@@ -47,9 +47,14 @@ def wmo_registry_picker(request):
             messages.error(request, error)
             return redirect(reverse("capagg_sources_wmo_registry"))
         summary = apply_registry_selection(parse_wmo_registry(content), request.POST.getlist("guid"))
-        messages.success(request, _("Created %(created)d authorities (%(skipped)d skipped).") % {
-            "created": summary.created, "skipped": summary.skipped,
-        })
+        messages.success(
+            request,
+            _("WMO Registry: %(created)d created, %(linked)d linked, %(updated)d updated, %(skipped)d skipped.")
+            % {
+                "created": summary.created, "linked": summary.linked,
+                "updated": summary.updated, "skipped": summary.skipped,
+            },
+        )
         return redirect(reverse("wagtailsnippets_capagg_sources_sourceauthority:list"))
 
     refresh = request.GET.get("refresh") == "1"
