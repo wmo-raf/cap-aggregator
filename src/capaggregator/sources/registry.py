@@ -59,6 +59,7 @@ class RegistryEntry:
     feed_url: str | None  # English raa:capAlertFeed, else the first listed, else None
     contact_email: str
     abbrev: str
+    country_name: str = ""  # the "<Country>: " title prefix (falls back to the alpha-2 code)
 
 
 def parse_wmo_registry(content: bytes) -> list[RegistryEntry]:
@@ -71,16 +72,19 @@ def parse_wmo_registry(content: bytes) -> list[RegistryEntry]:
 
 def _parse_item(item) -> RegistryEntry:
     title = (item.findtext("title") or "").strip()
-    name = title.split(": ", 1)[1] if ": " in title else title
+    country_prefix, _, rest = title.partition(": ")
+    name = rest if rest else title
     alpha3 = (item.findtext("iso:countrycode", namespaces=_NSMAP) or "").strip()
+    country = _alpha3_to_alpha2().get(alpha3.upper())
 
     return RegistryEntry(
         guid=(item.findtext("guid") or "").strip(),
         name=name,
-        country=_alpha3_to_alpha2().get(alpha3.upper()),
+        country=country,
         feed_url=_select_feed_url(item),
         contact_email=(item.findtext("author") or "").strip(),
         abbrev=(item.findtext("raa:authorityAbbrev", namespaces=_NSMAP) or "").strip(),
+        country_name=country_prefix if rest else (country or ""),
     )
 
 
@@ -141,6 +145,23 @@ def derive_registry_view(entries: list[RegistryEntry]) -> list[RegistryRow]:
     """Annotate each parsed entry with an import status by matching it against
     existing SourceAuthority rows — by wmo_guid first, then by feed_url."""
     return [_derive_row(entry) for entry in entries]
+
+
+def sort_registry_rows(rows: list[RegistryRow]) -> list[RegistryRow]:
+    """Presentation order: rows already backed by an authority first, then NEW,
+    then non-addable rows — each group by country name, then authority name.
+    Kept out of derive_registry_view so status derivation stays order-free."""
+    return sorted(rows, key=_sort_key)
+
+
+def _sort_key(row: RegistryRow):
+    if row.authority_id is not None:
+        group = 0
+    elif row.status == STATUS_NEW:
+        group = 1
+    else:
+        group = 2
+    return (group, row.entry.country_name.lower(), row.entry.name.lower())
 
 
 def _derive_row(entry: RegistryEntry) -> RegistryRow:
