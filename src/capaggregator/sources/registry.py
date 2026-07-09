@@ -167,3 +167,68 @@ def _find_matching_authority(entry: RegistryEntry):
         if match is not None:
             return match
     return SourceAuthority.objects.filter(feed_url=entry.feed_url).first()
+
+
+# --- Apply a selection (DB write) ------------------------------------------
+
+
+@dataclass
+class ApplySummary:
+    """Outcome of applying a picker selection."""
+
+    created: int = 0
+    skipped: int = 0
+
+
+def apply_registry_selection(entries: list[RegistryEntry], selected_guids, *, active: bool = True) -> ApplySummary:
+    """Create a SourceAuthority for each selected entry whose status is NEW.
+    Status is re-derived here (against the current DB, in one transaction) rather
+    than trusted from the client. Selected entries that are not NEW are skipped —
+    linking/updating existing authorities is handled separately."""
+    from django.db import transaction
+
+    selected_guids = set(selected_guids)
+    summary = ApplySummary()
+    with transaction.atomic():
+        for row in derive_registry_view(entries):
+            if row.entry.guid not in selected_guids:
+                continue
+            if row.status == STATUS_NEW:
+                _create_authority(row.entry, active=active)
+                summary.created += 1
+            else:
+                summary.skipped += 1
+    return summary
+
+
+def _create_authority(entry: RegistryEntry, *, active: bool):
+    from .models import SourceAuthority
+
+    SourceAuthority.objects.create(
+        name=entry.name,
+        country=entry.country,
+        feed_url=entry.feed_url,
+        contact_email=entry.contact_email,
+        sender_values=[],
+        active=active,
+        slug=_unique_slug(entry.name),
+        wmo_guid=entry.guid,
+        wmo_feed_url=entry.feed_url,
+    )
+
+
+def _unique_slug(name: str) -> str:
+    """Slug from the name (as the model would), disambiguated with a numeric
+    suffix so a batch never fails on a duplicate slug."""
+    from django.utils.text import slugify
+
+    from .models import SourceAuthority
+
+    base = slugify(name)[:100] or "authority"
+    slug = base
+    n = 2
+    while SourceAuthority.objects.filter(slug=slug).exists():
+        suffix = f"-{n}"
+        slug = f"{base[: 100 - len(suffix)]}{suffix}"
+        n += 1
+    return slug

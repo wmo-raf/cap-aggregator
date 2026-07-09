@@ -97,6 +97,13 @@
             color: var(--w-color-critical-200);
             font-weight: 600;
         }
+
+        .capagg-registry__actions {
+            display: flex;
+            justify-content: flex-end;
+            padding: 1rem;
+            border-top: 1px solid var(--w-color-border-furniture);
+        }
     </style>
 {% endblock %}
 
@@ -115,34 +122,42 @@
                     {% if error %}
                         <p class="capagg-registry__error">{{ error }}</p>
                     {% else %}
-                        <table class="capagg-table">
-                            <thead>
-                                <tr>
-                                    <th></th>
-                                    <th>{% trans "Name" %}</th>
-                                    <th>{% trans "Country" %}</th>
-                                    <th>{% trans "Status" %}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in rows %}
+                        <form method="post" action="{% url 'capagg_sources_wmo_registry' %}">
+                            {% csrf_token %}
+                            <table class="capagg-table">
+                                <thead>
                                     <tr>
-                                        <td>
-                                            {% if row.selectable %}
-                                                <input type="checkbox" name="guid" value="{{ row.entry.guid }}" aria-label="{% trans 'Select' %} {{ row.entry.name }}">
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ row.entry.name }}</td>
-                                        <td>{{ row.entry.country|default:"—" }}</td>
-                                        <td>
-                                            <span class="capagg-badge capagg-badge--{{ row.status|lower }}">{{ row.status_label }}</span>
-                                        </td>
+                                        <th></th>
+                                        <th>{% trans "Name" %}</th>
+                                        <th>{% trans "Country" %}</th>
+                                        <th>{% trans "Status" %}</th>
                                     </tr>
-                                {% empty %}
-                                    <tr><td colspan="4">{% trans "No entries returned by the registry." %}</td></tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {% for row in rows %}
+                                        <tr>
+                                            <td>
+                                                {% if row.selectable %}
+                                                    <input type="checkbox" name="guid" value="{{ row.entry.guid }}" aria-label="{% trans 'Select' %} {{ row.entry.name }}">
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ row.entry.name }}</td>
+                                            <td>{{ row.entry.country|default:"—" }}</td>
+                                            <td>
+                                                <span class="capagg-badge capagg-badge--{{ row.status|lower }}">{{ row.status_label }}</span>
+                                            </td>
+                                        </tr>
+                                    {% empty %}
+                                        <tr><td colspan="4">{% trans "No entries returned by the registry." %}</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% if rows %}
+                                <div class="capagg-registry__actions">
+                                    <button type="submit" class="button">{% trans "Add selected" %}</button>
+                                </div>
+                            {% endif %}
+                        </form>
                     {% endif %}
                 </div>
             </section>

@@ -7,11 +7,14 @@ post-save signal syncs the broker auth files.
 """
 
 from django.conf import settings
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.translation import gettext as _
+from wagtail.admin import messages
 from wagtail.admin.auth import require_admin_access
 
 from .models import SourceAuthority
-from .registry import derive_registry_view, fetch_wmo_registry, parse_wmo_registry
+from .registry import apply_registry_selection, derive_registry_view, fetch_wmo_registry, parse_wmo_registry
 
 
 @require_admin_access
@@ -33,10 +36,22 @@ def issue_mqtt_credentials(request, pk):
 
 @require_admin_access
 def wmo_registry_picker(request):
-    """Read-only picker over the WMO Register of Alerting Authorities (issue
-    #28). Fetches (cached) + parses the live register and shows each entry with
-    an import status. Selection checkboxes render on selectable rows; the
-    Add/Update action itself is wired up in a later issue."""
+    """Picker over the WMO Register of Alerting Authorities. GET (issue #28)
+    fetches (cached) + parses the live register and shows each entry with an
+    import status and a selection checkbox on selectable rows. POST (issue #29)
+    bulk-creates a SourceAuthority for each selected NEW entry, then redirects
+    to the Authorities list with a summary message."""
+    if request.method == "POST":
+        content, error = fetch_wmo_registry()
+        if error:
+            messages.error(request, error)
+            return redirect(reverse("capagg_sources_wmo_registry"))
+        summary = apply_registry_selection(parse_wmo_registry(content), request.POST.getlist("guid"))
+        messages.success(request, _("Created %(created)d authorities (%(skipped)d skipped).") % {
+            "created": summary.created, "skipped": summary.skipped,
+        })
+        return redirect(reverse("wagtailsnippets_capagg_sources_sourceauthority:list"))
+
     refresh = request.GET.get("refresh") == "1"
     content, error = fetch_wmo_registry(refresh=refresh)
 
