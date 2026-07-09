@@ -1,0 +1,27 @@
+{% extends "wagtailadmin/login.html" %}
+{% load static capagg_tags %}
+
+{% block branding_login %}
+    {% if 'WAGTAIL_SITE_NAME'|django_settings %}
+        Sign in to {{ 'WAGTAIL_SITE_NAME'|django_settings }}
+    {% else %}
+        Sign in
+    {% endif %}
+{% endblock %}
+
+{% block branding_logo %}
+    <div class="login-logo">
+        <figure class="capagg-logo">
+            <img src="{% static 'images/cap-agg-logo.png' %}" alt="CAP Aggregator">
+        </figure>
+    </div>
+    <style>
+
+        .login-logo {
+            display: flex;
+            justify-content: center;
+        }
+
+
+    </style>
+{% endblock %}

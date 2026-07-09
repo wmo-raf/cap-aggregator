@@ -28,6 +28,7 @@ CSRF_TRUSTED_ORIGINS = [o for o in env.list("CSRF_TRUSTED_ORIGINS", default=[]) 
 
 INSTALLED_APPS = [
     # Local apps
+    "capaggregator.config",
     "capaggregator.sources",
     "capaggregator.ingestion",
     "capaggregator.alerts",
@@ -185,9 +186,7 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 # celery-singleton reuses the django-redis connection instead of opening its own
-CELERY_SINGLETON_BACKEND_CLASS = (
-    "capaggregator.celery_singleton_backend.RedisBackendForSingleton"
-)
+CELERY_SINGLETON_BACKEND_CLASS = "capaggregator.celery_singleton_backend.RedisBackendForSingleton"
 
 # Results stored in the database (django-celery-results) — inspectable in the
 # admin and survives Redis restarts

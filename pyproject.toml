@@ -1,6 +1,5 @@
 [project]
 name = "cap-aggregator"
-version = "0.1.0"
 description = "CAP v1.2 alert aggregator — ingests alerts from cap-composer instances over MQTT, serves vector tiles, search APIs and re-publication feeds"
 requires-python = ">=3.12"
 dependencies = [
@@ -52,3 +51,8 @@ packages = ["src/capaggregator"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+
+
+[tool.setuptools.dynamic]
+# version always from the code
+version = { attr = "capaggregator.version.__version__" }
