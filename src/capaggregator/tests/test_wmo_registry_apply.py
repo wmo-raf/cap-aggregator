@@ -57,14 +57,13 @@ class ApplyCreatesAuthorityTests(TestCase):
         slugs = set(SourceAuthority.objects.values_list("slug", flat=True))
         self.assertEqual(len(slugs), 2)
 
-    def test_selected_entry_matching_an_existing_authority_is_skipped_not_duplicated(self):
+    def test_selected_entry_matching_an_existing_authority_is_not_duplicated(self):
         create_source_authority(name="Existing", feed_url="https://dup.example/cap.xml")
         e = entry(guid="urn:oid:dup", name="Same Feed Body", feed_url="https://dup.example/cap.xml")
 
         summary = apply_registry_selection([e], {e.guid})
 
         self.assertEqual(summary.created, 0)
-        self.assertEqual(summary.skipped, 1)
         self.assertEqual(SourceAuthority.objects.filter(feed_url="https://dup.example/cap.xml").count(), 1)
 
     def test_a_created_entry_no_longer_reads_as_new(self):

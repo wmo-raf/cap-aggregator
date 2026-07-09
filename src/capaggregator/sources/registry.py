@@ -166,7 +166,26 @@ def _find_matching_authority(entry: RegistryEntry):
         match = SourceAuthority.objects.filter(wmo_guid=entry.guid).first()
         if match is not None:
             return match
-    return SourceAuthority.objects.filter(feed_url=entry.feed_url).first()
+
+    # Feed-URL fallback, normalised so trivial variants (trailing slash, host
+    # case) still dedup against a manually-added authority.
+    exact = SourceAuthority.objects.filter(feed_url=entry.feed_url).first()
+    if exact is not None:
+        return exact
+    target = _normalize_feed_url(entry.feed_url)
+    for authority in SourceAuthority.objects.exclude(feed_url="").only("id", "feed_url", "wmo_guid", "wmo_feed_url"):
+        if _normalize_feed_url(authority.feed_url) == target:
+            return authority
+    return None
+
+
+def _normalize_feed_url(url: str) -> str:
+    """Canonicalise a feed URL for comparison: lower-case scheme/host, drop a
+    trailing slash on the path."""
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit((url or "").strip())
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), parts.query, parts.fragment))
 
 
 # --- Apply a selection (DB write) ------------------------------------------
@@ -177,14 +196,17 @@ class ApplySummary:
     """Outcome of applying a picker selection."""
 
     created: int = 0
+    linked: int = 0
+    updated: int = 0
     skipped: int = 0
 
 
 def apply_registry_selection(entries: list[RegistryEntry], selected_guids, *, active: bool = True) -> ApplySummary:
-    """Create a SourceAuthority for each selected entry whose status is NEW.
-    Status is re-derived here (against the current DB, in one transaction) rather
-    than trusted from the client. Selected entries that are not NEW are skipped —
-    linking/updating existing authorities is handled separately."""
+    """Apply a picker selection. Status is re-derived here (against the current
+    DB, in one transaction) rather than trusted from the client, then each
+    selected entry is acted on by status: NEW is created, ALREADY_EXISTS links
+    the matched authority to its registry entry, NEEDS_UPDATE moves it to the
+    register's new feed. Anything else selected is skipped."""
     from django.db import transaction
 
     selected_guids = set(selected_guids)
@@ -196,9 +218,33 @@ def apply_registry_selection(entries: list[RegistryEntry], selected_guids, *, ac
             if row.status == STATUS_NEW:
                 _create_authority(row.entry, active=active)
                 summary.created += 1
+            elif row.status == STATUS_ALREADY_EXISTS:
+                _link_authority(row.authority_id, row.entry)
+                summary.linked += 1
+            elif row.status == STATUS_NEEDS_UPDATE:
+                _update_authority_feed(row.authority_id, row.entry)
+                summary.updated += 1
             else:
                 summary.skipped += 1
     return summary
+
+
+def _link_authority(authority_id: int, entry: RegistryEntry):
+    """Stamp the registry guid + captured feed onto an existing (manually-added)
+    authority so it becomes tracked. Nothing else is touched."""
+    from .models import SourceAuthority
+
+    SourceAuthority.objects.filter(pk=authority_id).update(wmo_guid=entry.guid, wmo_feed_url=entry.feed_url)
+
+
+def _update_authority_feed(authority_id: int, entry: RegistryEntry):
+    """Move an already-linked authority to the register's new feed URL, clearing
+    conditional-GET state (stale for a new URL). Admin-owned fields are preserved."""
+    from .models import SourceAuthority
+
+    SourceAuthority.objects.filter(pk=authority_id).update(
+        feed_url=entry.feed_url, wmo_feed_url=entry.feed_url, feed_etag="", feed_last_modified=""
+    )
 
 
 def _create_authority(entry: RegistryEntry, *, active: bool):
