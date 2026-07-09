@@ -14,7 +14,13 @@ from wagtail.admin import messages
 from wagtail.admin.auth import require_admin_access
 
 from .models import SourceAuthority
-from .registry import apply_registry_selection, derive_registry_view, fetch_wmo_registry, parse_wmo_registry
+from .wmo_registry import (
+    apply_registry_selection,
+    derive_registry_view,
+    fetch_wmo_registry,
+    group_registry_rows,
+    parse_wmo_registry,
+)
 
 
 @require_admin_access
@@ -60,8 +66,8 @@ def wmo_registry_picker(request):
     refresh = request.GET.get("refresh") == "1"
     content, error = fetch_wmo_registry(refresh=refresh)
 
-    rows = []
+    groups = []
     if content is not None:
-        rows = derive_registry_view(parse_wmo_registry(content))
+        groups = group_registry_rows(derive_registry_view(parse_wmo_registry(content)))
 
-    return render(request, "capagg_sources/wmo_registry_picker.html", {"rows": rows, "error": error})
+    return render(request, "capagg_sources/wmo_registry_picker.html", {"groups": groups, "error": error})

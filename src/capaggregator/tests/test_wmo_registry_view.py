@@ -27,7 +27,7 @@ class WmoRegistryPickerViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "National Center for Meteorology")
-        self.assertContains(response, "NEW")
+        self.assertContains(response, "Not Added")
 
     @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
     def test_a_non_selectable_row_has_no_checkbox(self, fetch):
@@ -36,7 +36,7 @@ class WmoRegistryPickerViewTests(TestCase):
         response = self.client.get(self._url())
 
         # The Syrian entry has no capAlertFeed, so it must not be selectable.
-        self.assertContains(response, "NO FEED")
+        self.assertContains(response, "No feed")
         self.assertNotContains(response, 'value="urn:oid:2.49.0.0.760.0"')
 
     @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
@@ -46,7 +46,8 @@ class WmoRegistryPickerViewTests(TestCase):
         response = self.client.get(self._url())
 
         self.assertContains(response, 'method="post"')
-        self.assertContains(response, "Add selected")
+        self.assertContains(response, "data-registry-add")
+        self.assertContains(response, "selected")
 
     @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
     def test_renders_an_error_state_when_the_registry_is_unreachable(self, fetch):
@@ -79,6 +80,45 @@ class WmoRegistryPickerViewTests(TestCase):
 
         text = " ".join(str(m) for m in get_messages(response.wsgi_request))
         self.assertIn("1 linked", text)
+
+    @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
+    def test_renders_the_search_box_and_per_row_search_text(self, fetch):
+        fetch.return_value = (WMO_REGISTRY_SAMPLE_XML, None)
+
+        response = self.client.get(self._url())
+
+        self.assertContains(response, "data-registry-search")
+        # Rows carry lowercased country+name for the client-side filter.
+        self.assertContains(response, 'data-search="mozambique instituto nacional de meteorologia"')
+
+    @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
+    def test_shows_the_country_name_and_sorts_in_system_rows_first(self, fetch):
+        from .factories import create_source_authority
+
+        fetch.return_value = (WMO_REGISTRY_SAMPLE_XML, None)
+        # Testland is last in the feed; making it in-system must float it above
+        # the still-NEW Mozambique entry.
+        create_source_authority(name="Existing Testland", feed_url="https://testland.example.test/rss.xml")
+
+        response = self.client.get(self._url())
+        body = response.content.decode()
+
+        self.assertContains(response, "Mozambique")  # country-name column rendered
+        self.assertLess(
+            body.index("Testland Meteorological Service"),
+            body.index("Instituto Nacional de Meteorologia"),
+        )
+
+    @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
+    def test_renders_region_subregion_and_intermediate_headers(self, fetch):
+        fetch.return_value = (WMO_REGISTRY_SAMPLE_XML, None)
+
+        response = self.client.get(self._url())
+
+        # Mozambique (NEW) nests Africa ▸ Sub-Saharan Africa ▸ Eastern Africa.
+        self.assertContains(response, "Africa")
+        self.assertContains(response, "Sub-Saharan Africa")
+        self.assertContains(response, "Eastern Africa")
 
     def test_requires_login(self):
         self.client.logout()

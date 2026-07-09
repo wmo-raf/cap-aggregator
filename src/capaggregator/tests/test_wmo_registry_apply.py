@@ -4,15 +4,16 @@ authorities from parsed registry entries."""
 from django.test import TestCase
 
 from capaggregator.sources.models import SourceAuthority
-from capaggregator.sources.registry import RegistryEntry, apply_registry_selection
+from capaggregator.sources.wmo_registry import RegistryEntry, apply_registry_selection
 
 from .factories import create_source_authority
 
 
 def entry(guid="urn:oid:1", name="National Met Service", country="KE",
-          feed_url="https://nms.example/cap/en.xml", contact_email="ops@nms.example", abbrev="nms"):
+          feed_url="https://nms.example/cap/en.xml", contact_email="ops@nms.example", abbrev="nms",
+          country_name="Kenya"):
     return RegistryEntry(guid=guid, name=name, country=country, feed_url=feed_url,
-                         contact_email=contact_email, abbrev=abbrev)
+                         contact_email=contact_email, abbrev=abbrev, country_name=country_name)
 
 
 class ApplyCreatesAuthorityTests(TestCase):
@@ -67,7 +68,7 @@ class ApplyCreatesAuthorityTests(TestCase):
         self.assertEqual(SourceAuthority.objects.filter(feed_url="https://dup.example/cap.xml").count(), 1)
 
     def test_a_created_entry_no_longer_reads_as_new(self):
-        from capaggregator.sources.registry import STATUS_NEW, derive_registry_view
+        from capaggregator.sources.wmo_registry import STATUS_NEW, derive_registry_view
 
         e = entry()
         apply_registry_selection([e], {e.guid})

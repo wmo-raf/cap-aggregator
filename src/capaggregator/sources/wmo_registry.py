@@ -5,7 +5,7 @@ a later issue.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 import requests
@@ -59,6 +59,7 @@ class RegistryEntry:
     feed_url: str | None  # English raa:capAlertFeed, else the first listed, else None
     contact_email: str
     abbrev: str
+    country_name: str = ""  # the "<Country>: " title prefix (falls back to the alpha-2 code)
 
 
 def parse_wmo_registry(content: bytes) -> list[RegistryEntry]:
@@ -71,16 +72,19 @@ def parse_wmo_registry(content: bytes) -> list[RegistryEntry]:
 
 def _parse_item(item) -> RegistryEntry:
     title = (item.findtext("title") or "").strip()
-    name = title.split(": ", 1)[1] if ": " in title else title
+    country_prefix, _, rest = title.partition(": ")
+    name = rest if rest else title
     alpha3 = (item.findtext("iso:countrycode", namespaces=_NSMAP) or "").strip()
+    country = _alpha3_to_alpha2().get(alpha3.upper())
 
     return RegistryEntry(
         guid=(item.findtext("guid") or "").strip(),
         name=name,
-        country=_alpha3_to_alpha2().get(alpha3.upper()),
+        country=country,
         feed_url=_select_feed_url(item),
         contact_email=(item.findtext("author") or "").strip(),
         abbrev=(item.findtext("raa:authorityAbbrev", namespaces=_NSMAP) or "").strip(),
+        country_name=country_prefix if rest else (country or ""),
     )
 
 
@@ -114,12 +118,12 @@ STATUS_NO_FEED = "NO_FEED"
 STATUS_INVALID_COUNTRY = "INVALID_COUNTRY"
 
 STATUS_LABELS = {
-    STATUS_NEW: "NEW",
-    STATUS_ALREADY_EXISTS: "ALREADY EXISTS",
-    STATUS_UP_TO_DATE: "UP TO DATE",
-    STATUS_NEEDS_UPDATE: "NEEDS UPDATE",
-    STATUS_NO_FEED: "NO FEED",
-    STATUS_INVALID_COUNTRY: "INVALID COUNTRY",
+    STATUS_NEW: "Not Added",
+    STATUS_ALREADY_EXISTS: "Added",
+    STATUS_UP_TO_DATE: "Up to date",
+    STATUS_NEEDS_UPDATE: "Needs update",
+    STATUS_NO_FEED: "No feed",
+    STATUS_INVALID_COUNTRY: "Invalid country",
 }
 
 
@@ -141,6 +145,93 @@ def derive_registry_view(entries: list[RegistryEntry]) -> list[RegistryRow]:
     """Annotate each parsed entry with an import status by matching it against
     existing SourceAuthority rows — by wmo_guid first, then by feed_url."""
     return [_derive_row(entry) for entry in entries]
+
+
+@dataclass
+class RegistrySubgroup:
+    """A grouping level. A leaf holds `rows` (label=None for a flat section); a
+    branch (a sub-region that has intermediate-regions) holds child `subgroups`
+    and no direct rows."""
+
+    label: str | None
+    rows: list[RegistryRow] = field(default_factory=list)
+    subgroups: list["RegistrySubgroup"] = field(default_factory=list)
+
+
+@dataclass
+class RegistryGroup:
+    """One picker section: the flat 'Added'/'Unavailable' sections, or one region."""
+
+    kind: str  # "added" | "region" | "unavailable"
+    label: str
+    subgroups: list[RegistrySubgroup]
+
+
+def group_registry_rows(rows: list[RegistryRow]) -> list[RegistryGroup]:
+    """Arrange rows into display sections: a flat 'Added' section (in-system rows)
+    first, then Region -> Sub-region for the not-added rows (regions alphabetical,
+    an 'Other' catch-all last), then a flat 'Unavailable' section (No feed /
+    Invalid country) at the bottom. Rows within a leaf are by country then name.
+    Presentation only — kept out of derive_registry_view."""
+    added: list[RegistryRow] = []
+    unavailable: list[RegistryRow] = []
+    # region -> sub-region -> intermediate (or None) -> rows
+    by_region: dict[str, dict[str, dict[str | None, list[RegistryRow]]]] = {}
+
+    for row in rows:
+        if row.authority_id is not None:
+            added.append(row)
+        elif row.status in (STATUS_NO_FEED, STATUS_INVALID_COUNTRY):
+            unavailable.append(row)
+        else:
+            region, sub_region, intermediate = _region_by_code().get(row.entry.country or "", ("", "", ""))
+            region = region or "Other"
+            by_region.setdefault(region, {}).setdefault(sub_region or region, {}).setdefault(
+                intermediate or None, []
+            ).append(row)
+
+    groups: list[RegistryGroup] = []
+    if added:
+        groups.append(RegistryGroup("added", "Added", [RegistrySubgroup(None, _by_country(added))]))
+
+    named = sorted(r for r in by_region if r != "Other")
+    for region in named + (["Other"] if "Other" in by_region else []):
+        groups.append(RegistryGroup("region", region, _build_subregions(by_region[region])))
+
+    if unavailable:
+        groups.append(RegistryGroup("unavailable", "Unavailable", [RegistrySubgroup(None, _by_country(unavailable))]))
+    return groups
+
+
+def _build_subregions(subs: dict[str, dict[str | None, list[RegistryRow]]]) -> list[RegistrySubgroup]:
+    """Turn {sub-region -> {intermediate|None -> rows}} into sub-region subgroups.
+    A sub-region whose only key is None is a leaf (rows directly); one with
+    intermediate values becomes a pure header nesting an intermediate level."""
+    subgroups = []
+    for sub in sorted(subs):
+        intermediates = subs[sub]
+        if set(intermediates) == {None}:
+            subgroups.append(RegistrySubgroup(sub, rows=_by_country(intermediates[None])))
+        else:
+            children = [
+                RegistrySubgroup(inter, rows=_by_country(intermediates[inter]))
+                for inter in sorted(k for k in intermediates if k is not None)
+            ]
+            subgroups.append(RegistrySubgroup(sub, subgroups=children))
+    return subgroups
+
+
+def _by_country(rows: list[RegistryRow]) -> list[RegistryRow]:
+    return sorted(rows, key=lambda r: (r.entry.country_name.lower(), r.entry.name.lower()))
+
+
+@lru_cache(maxsize=1)
+def _region_by_code() -> dict[str, tuple[str, str, str]]:
+    """alpha-2 -> (region, sub-region, intermediate-region) from the vendored
+    ISO 3166 / UN M49 data."""
+    from .countries import ALL
+
+    return {c["alpha-2"]: (c["region"], c["sub-region"], c["intermediate-region"]) for c in ALL}
 
 
 def _derive_row(entry: RegistryEntry) -> RegistryRow:

@@ -4,7 +4,7 @@ picker shows and whether a row is selectable."""
 
 from django.test import TestCase
 
-from capaggregator.sources.registry import RegistryEntry, derive_registry_view
+from capaggregator.sources.wmo_registry import RegistryEntry, derive_registry_view
 
 from .factories import create_source_authority
 
@@ -20,6 +20,16 @@ def _entry(**kwargs):
     }
     defaults.update(kwargs)
     return RegistryEntry(**defaults)
+
+
+class StatusLabelTests(TestCase):
+    def test_new_reads_not_added_and_already_exists_reads_added(self):
+        new_row = derive_registry_view([_entry()])[0]
+        create_source_authority(name="Existing", feed_url="https://dup.test/rss.xml")
+        existing_row = derive_registry_view([_entry(guid="urn:oid:dup", feed_url="https://dup.test/rss.xml")])[0]
+
+        self.assertEqual(new_row.status_label, "Not Added")
+        self.assertEqual(existing_row.status_label, "Added")
 
 
 class DeriveRegistryViewTests(TestCase):

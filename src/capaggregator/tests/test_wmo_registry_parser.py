@@ -5,7 +5,7 @@ reliably exposed by feedparser. No network, no DB."""
 
 from django.test import TestCase
 
-from capaggregator.sources.registry import parse_wmo_registry
+from capaggregator.sources.wmo_registry import parse_wmo_registry
 
 from .cap_samples import WMO_REGISTRY_SAMPLE_XML
 
@@ -38,6 +38,16 @@ class ParseWmoRegistryTests(TestCase):
         entry = next(e for e in self.entries if e.guid == "urn:oid:2.49.0.0.555.0")
 
         self.assertEqual(entry.name, "Testland Meteorological Service")
+
+    def test_captures_the_country_name_prefix_from_the_title(self):
+        entry = next(e for e in self.entries if e.guid == "urn:oid:2.49.0.0.508.0")
+
+        self.assertEqual(entry.country_name, "Mozambique")
+
+    def test_country_name_falls_back_to_the_code_when_the_title_has_no_prefix(self):
+        entry = next(e for e in self.entries if e.guid == "urn:oid:2.49.0.0.555.0")
+
+        self.assertEqual(entry.country_name, "KE")
 
     def test_maps_the_iso_alpha3_countrycode_to_alpha2(self):
         entry = next(e for e in self.entries if e.guid == "urn:oid:2.49.0.0.682.0")
