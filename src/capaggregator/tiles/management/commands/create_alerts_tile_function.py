@@ -90,8 +90,8 @@ BEGIN
           AND (f_certainty IS NULL OR r.certainty = ANY(f_certainty))
           AND (f_msg_type  IS NULL OR r.msg_type  = ANY(f_msg_type))
           AND (f_status    IS NULL OR r.status    = ANY(f_status))
-          AND (f_category  IS NULL OR r.categories && f_category)
-          AND (f_country   IS NULL OR r.countries  && f_country)
+          AND (f_category  IS NULL OR r.categories::text[] && f_category)
+          AND (f_country   IS NULL OR r.countries::text[]  && f_country)
           AND (f_event     IS NULL OR r.event ILIKE '%%' || f_event || '%%')
           AND r.geom && tile_bbox
     ),
