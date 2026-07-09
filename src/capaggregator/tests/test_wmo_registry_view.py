@@ -40,6 +40,15 @@ class WmoRegistryPickerViewTests(TestCase):
         self.assertNotContains(response, 'value="urn:oid:2.49.0.0.760.0"')
 
     @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
+    def test_renders_a_submit_form_for_the_selection(self, fetch):
+        fetch.return_value = (WMO_REGISTRY_SAMPLE_XML, None)
+
+        response = self.client.get(self._url())
+
+        self.assertContains(response, 'method="post"')
+        self.assertContains(response, "Add selected")
+
+    @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
     def test_renders_an_error_state_when_the_registry_is_unreachable(self, fetch):
         fetch.return_value = (None, "Could not reach the WMO Register of Alerting Authorities. Try again later.")
 
@@ -62,3 +71,17 @@ class WmoRegistryPickerViewTests(TestCase):
         response = self.client.get(self._url())
 
         self.assertEqual(response.status_code, 302)
+
+    @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
+    def test_posting_a_selection_creates_authorities_and_redirects_to_the_list(self, fetch):
+        from capaggregator.sources.models import SourceAuthority
+
+        fetch.return_value = (WMO_REGISTRY_SAMPLE_XML, None)
+
+        response = self.client.post(self._url(), {"guid": ["urn:oid:2.49.0.0.682.0"]})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.url, reverse("wagtailsnippets_capagg_sources_sourceauthority:list")
+        )
+        self.assertTrue(SourceAuthority.objects.filter(wmo_guid="urn:oid:2.49.0.0.682.0").exists())
