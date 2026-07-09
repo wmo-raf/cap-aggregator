@@ -1,0 +1,13 @@
+{% load i18n %}
+<tr data-registry-row data-search="{{ row.entry.country_name|lower }} {{ row.entry.name|lower }}">
+    <td>
+        {% if row.selectable %}
+            <input type="checkbox" name="guid" value="{{ row.entry.guid }}" data-registry-checkbox aria-label="{% trans 'Select' %} {{ row.entry.name }}">
+        {% endif %}
+    </td>
+    <td>{{ row.entry.country_name|default:"—" }}</td>
+    <td>{{ row.entry.name }}</td>
+    <td>
+        <span class="capagg-badge capagg-badge--{{ row.status|lower }}">{{ row.status_label }}</span>
+    </td>
+</tr>

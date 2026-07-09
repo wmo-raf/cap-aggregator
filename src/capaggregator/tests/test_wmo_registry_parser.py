@@ -5,7 +5,7 @@ reliably exposed by feedparser. No network, no DB."""
 
 from django.test import TestCase
 
-from capaggregator.sources.registry import parse_wmo_registry
+from capaggregator.sources.wmo_registry import parse_wmo_registry
 
 from .cap_samples import WMO_REGISTRY_SAMPLE_XML
 

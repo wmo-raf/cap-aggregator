@@ -109,6 +109,17 @@ class WmoRegistryPickerViewTests(TestCase):
             body.index("Instituto Nacional de Meteorologia"),
         )
 
+    @patch("capaggregator.sources.admin_views.fetch_wmo_registry")
+    def test_renders_region_subregion_and_intermediate_headers(self, fetch):
+        fetch.return_value = (WMO_REGISTRY_SAMPLE_XML, None)
+
+        response = self.client.get(self._url())
+
+        # Mozambique (NEW) nests Africa ▸ Sub-Saharan Africa ▸ Eastern Africa.
+        self.assertContains(response, "Africa")
+        self.assertContains(response, "Sub-Saharan Africa")
+        self.assertContains(response, "Eastern Africa")
+
     def test_requires_login(self):
         self.client.logout()
 

@@ -5,7 +5,7 @@ a later issue.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 import requests
@@ -149,10 +149,13 @@ def derive_registry_view(entries: list[RegistryEntry]) -> list[RegistryRow]:
 
 @dataclass
 class RegistrySubgroup:
-    """Rows under one sub-region (label=None for a flat section)."""
+    """A grouping level. A leaf holds `rows` (label=None for a flat section); a
+    branch (a sub-region that has intermediate-regions) holds child `subgroups`
+    and no direct rows."""
 
     label: str | None
-    rows: list[RegistryRow]
+    rows: list[RegistryRow] = field(default_factory=list)
+    subgroups: list["RegistrySubgroup"] = field(default_factory=list)
 
 
 @dataclass
@@ -172,7 +175,8 @@ def group_registry_rows(rows: list[RegistryRow]) -> list[RegistryGroup]:
     Presentation only — kept out of derive_registry_view."""
     added: list[RegistryRow] = []
     unavailable: list[RegistryRow] = []
-    by_region: dict[str, dict[str, list[RegistryRow]]] = {}
+    # region -> sub-region -> intermediate (or None) -> rows
+    by_region: dict[str, dict[str, dict[str | None, list[RegistryRow]]]] = {}
 
     for row in rows:
         if row.authority_id is not None:
@@ -180,9 +184,11 @@ def group_registry_rows(rows: list[RegistryRow]) -> list[RegistryGroup]:
         elif row.status in (STATUS_NO_FEED, STATUS_INVALID_COUNTRY):
             unavailable.append(row)
         else:
-            region, sub_region = _region_by_code().get(row.entry.country or "", ("", ""))
+            region, sub_region, intermediate = _region_by_code().get(row.entry.country or "", ("", "", ""))
             region = region or "Other"
-            by_region.setdefault(region, {}).setdefault(sub_region or region, []).append(row)
+            by_region.setdefault(region, {}).setdefault(sub_region or region, {}).setdefault(
+                intermediate or None, []
+            ).append(row)
 
     groups: list[RegistryGroup] = []
     if added:
@@ -190,13 +196,29 @@ def group_registry_rows(rows: list[RegistryRow]) -> list[RegistryGroup]:
 
     named = sorted(r for r in by_region if r != "Other")
     for region in named + (["Other"] if "Other" in by_region else []):
-        subs = by_region[region]
-        subgroups = [RegistrySubgroup(sub, _by_country(subs[sub])) for sub in sorted(subs)]
-        groups.append(RegistryGroup("region", region, subgroups))
+        groups.append(RegistryGroup("region", region, _build_subregions(by_region[region])))
 
     if unavailable:
         groups.append(RegistryGroup("unavailable", "Unavailable", [RegistrySubgroup(None, _by_country(unavailable))]))
     return groups
+
+
+def _build_subregions(subs: dict[str, dict[str | None, list[RegistryRow]]]) -> list[RegistrySubgroup]:
+    """Turn {sub-region -> {intermediate|None -> rows}} into sub-region subgroups.
+    A sub-region whose only key is None is a leaf (rows directly); one with
+    intermediate values becomes a pure header nesting an intermediate level."""
+    subgroups = []
+    for sub in sorted(subs):
+        intermediates = subs[sub]
+        if set(intermediates) == {None}:
+            subgroups.append(RegistrySubgroup(sub, rows=_by_country(intermediates[None])))
+        else:
+            children = [
+                RegistrySubgroup(inter, rows=_by_country(intermediates[inter]))
+                for inter in sorted(k for k in intermediates if k is not None)
+            ]
+            subgroups.append(RegistrySubgroup(sub, subgroups=children))
+    return subgroups
 
 
 def _by_country(rows: list[RegistryRow]) -> list[RegistryRow]:
@@ -204,11 +226,12 @@ def _by_country(rows: list[RegistryRow]) -> list[RegistryRow]:
 
 
 @lru_cache(maxsize=1)
-def _region_by_code() -> dict[str, tuple[str, str]]:
-    """alpha-2 -> (region, sub-region) from the vendored ISO 3166 / UN M49 data."""
+def _region_by_code() -> dict[str, tuple[str, str, str]]:
+    """alpha-2 -> (region, sub-region, intermediate-region) from the vendored
+    ISO 3166 / UN M49 data."""
     from .countries import ALL
 
-    return {c["alpha-2"]: (c["region"], c["sub-region"]) for c in ALL}
+    return {c["alpha-2"]: (c["region"], c["sub-region"], c["intermediate-region"]) for c in ALL}
 
 
 def _derive_row(entry: RegistryEntry) -> RegistryRow:

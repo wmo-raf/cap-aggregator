@@ -14,7 +14,7 @@ from wagtail.admin import messages
 from wagtail.admin.auth import require_admin_access
 
 from .models import SourceAuthority
-from .registry import (
+from .wmo_registry import (
     apply_registry_selection,
     derive_registry_view,
     fetch_wmo_registry,

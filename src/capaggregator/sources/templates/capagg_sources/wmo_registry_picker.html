@@ -77,6 +77,12 @@
             background: var(--w-color-grey-50);
         }
 
+        .capagg-table .capagg-subsubsection td {
+            padding-left: 3rem;
+            font-weight: 600;
+            color: var(--w-color-grey-400);
+        }
+
         .capagg-badge {
             display: inline-block;
             padding: .1rem .5rem;
@@ -172,18 +178,15 @@
                                                 </tr>
                                             {% endif %}
                                             {% for row in sub.rows %}
-                                                <tr data-registry-row data-search="{{ row.entry.country_name|lower }} {{ row.entry.name|lower }}">
-                                                    <td>
-                                                        {% if row.selectable %}
-                                                            <input type="checkbox" name="guid" value="{{ row.entry.guid }}" data-registry-checkbox aria-label="{% trans 'Select' %} {{ row.entry.name }}">
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>{{ row.entry.country_name|default:"—" }}</td>
-                                                    <td>{{ row.entry.name }}</td>
-                                                    <td>
-                                                        <span class="capagg-badge capagg-badge--{{ row.status|lower }}">{{ row.status_label }}</span>
-                                                    </td>
+                                                {% include "capagg_sources/_wmo_registry_row.html" %}
+                                            {% endfor %}
+                                            {% for inter in sub.subgroups %}
+                                                <tr class="capagg-subsubsection" data-registry-subsubsection>
+                                                    <td colspan="4">{{ inter.label }}</td>
                                                 </tr>
+                                                {% for row in inter.rows %}
+                                                    {% include "capagg_sources/_wmo_registry_row.html" %}
+                                                {% endfor %}
                                             {% endfor %}
                                         {% endfor %}
                                     {% empty %}
@@ -236,13 +239,18 @@
             }
 
             function hideEmptyHeaders() {
-                // Walk bottom-up: a subsection/section header stays visible only if a
-                // data row below it (before the next header of the same level) is shown.
+                // Walk bottom-up: a header at any level stays visible only if a data
+                // row below it (before the next header of the same level) is shown. A
+                // visible data row marks all three enclosing levels as non-empty.
                 let sectionHasRows = false;
                 let subsectionHasRows = false;
+                let subsubsectionHasRows = false;
                 for (let i = tableRows.length - 1; i >= 0; i -= 1) {
                     const tr = tableRows[i];
-                    if (tr.hasAttribute("data-registry-subsection")) {
+                    if (tr.hasAttribute("data-registry-subsubsection")) {
+                        tr.hidden = !subsubsectionHasRows;
+                        subsubsectionHasRows = false;
+                    } else if (tr.hasAttribute("data-registry-subsection")) {
                         tr.hidden = !subsectionHasRows;
                         subsectionHasRows = false;
                     } else if (tr.hasAttribute("data-registry-section")) {
@@ -251,6 +259,7 @@
                     } else if (tr.hasAttribute("data-registry-row") && !tr.hidden) {
                         sectionHasRows = true;
                         subsectionHasRows = true;
+                        subsubsectionHasRows = true;
                     }
                 }
             }

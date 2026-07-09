@@ -4,7 +4,7 @@ for the not-added rows, then a flat 'Unavailable' section last."""
 
 from django.test import SimpleTestCase
 
-from capaggregator.sources.registry import (
+from capaggregator.sources.wmo_registry import (
     STATUS_ALREADY_EXISTS,
     STATUS_INVALID_COUNTRY,
     STATUS_NEW,
@@ -72,6 +72,29 @@ class GroupRegistryRowsTests(SimpleTestCase):
 
         self.assertEqual(groups[-1].kind, "unavailable")
         self.assertEqual(len(groups[-1].subgroups[0].rows), 2)
+
+    def test_sub_region_with_intermediate_values_nests_a_third_level(self):
+        ke = row(STATUS_NEW, "KE", "Kenya", "KMD")  # Sub-Saharan Africa / Eastern Africa
+        ng = row(STATUS_NEW, "NG", "Nigeria", "NiMet")  # Sub-Saharan Africa / Western Africa
+
+        groups = group_registry_rows([ng, ke])
+        africa = next(g for g in groups if g.label == "Africa")
+        ssa = africa.subgroups[0]
+
+        self.assertEqual(ssa.label, "Sub-Saharan Africa")
+        self.assertEqual(ssa.rows, [])  # a pure header — rows live in the intermediate children
+        self.assertEqual([s.label for s in ssa.subgroups], ["Eastern Africa", "Western Africa"])
+        self.assertEqual(ssa.subgroups[0].rows, [ke])
+
+    def test_a_sub_region_without_intermediate_holds_rows_directly(self):
+        eg = row(STATUS_NEW, "EG", "Egypt", "EMA")  # Northern Africa — no intermediate
+
+        groups = group_registry_rows([eg])
+        africa = next(g for g in groups if g.label == "Africa")
+        northern = next(s for s in africa.subgroups if s.label == "Northern Africa")
+
+        self.assertEqual(northern.rows, [eg])
+        self.assertEqual(northern.subgroups, [])
 
     def test_a_country_with_no_region_falls_into_other_after_named_regions(self):
         antarctica = row(STATUS_NEW, "AQ", "Antarctica", "AntSurvey")  # empty region in the dataset

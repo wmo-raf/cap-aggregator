@@ -8,7 +8,7 @@ import requests
 from django.core.cache import cache
 from django.test import TestCase
 
-from capaggregator.sources.registry import fetch_wmo_registry
+from capaggregator.sources.wmo_registry import fetch_wmo_registry
 
 
 class FetchWmoRegistryTests(TestCase):
@@ -21,7 +21,7 @@ class FetchWmoRegistryTests(TestCase):
         response.raise_for_status = Mock()
         return response
 
-    @patch("capaggregator.sources.registry.requests.get")
+    @patch("capaggregator.sources.wmo_registry.requests.get")
     def test_a_second_call_within_the_ttl_does_not_re_request(self, get):
         get.return_value = self._response()
 
@@ -30,7 +30,7 @@ class FetchWmoRegistryTests(TestCase):
 
         get.assert_called_once()
 
-    @patch("capaggregator.sources.registry.requests.get")
+    @patch("capaggregator.sources.wmo_registry.requests.get")
     def test_returns_the_fetched_content_on_success(self, get):
         get.return_value = self._response(b"<rss>content</rss>")
 
@@ -39,7 +39,7 @@ class FetchWmoRegistryTests(TestCase):
         self.assertEqual(content, b"<rss>content</rss>")
         self.assertIsNone(error)
 
-    @patch("capaggregator.sources.registry.requests.get")
+    @patch("capaggregator.sources.wmo_registry.requests.get")
     def test_refresh_bypasses_and_repopulates_the_cache(self, get):
         get.side_effect = [self._response(b"<rss>first</rss>"), self._response(b"<rss>second</rss>")]
 
@@ -57,7 +57,7 @@ class FetchWmoRegistryTests(TestCase):
             headers={"User-Agent": "cap-aggregator/0.1 (+feed-poller)"},
         )
 
-    @patch("capaggregator.sources.registry.requests.get")
+    @patch("capaggregator.sources.wmo_registry.requests.get")
     def test_an_unreachable_registry_surfaces_an_error_instead_of_raising(self, get):
         get.side_effect = requests.ConnectionError("boom")
 

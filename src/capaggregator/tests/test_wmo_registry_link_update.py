@@ -5,7 +5,7 @@ official feed URL has changed."""
 from django.test import TestCase
 
 from capaggregator.sources.models import SourceAuthority
-from capaggregator.sources.registry import (
+from capaggregator.sources.wmo_registry import (
     STATUS_UP_TO_DATE,
     apply_registry_selection,
     derive_registry_view,

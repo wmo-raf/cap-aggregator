@@ -4,7 +4,7 @@ picker shows and whether a row is selectable."""
 
 from django.test import TestCase
 
-from capaggregator.sources.registry import RegistryEntry, derive_registry_view
+from capaggregator.sources.wmo_registry import RegistryEntry, derive_registry_view
 
 from .factories import create_source_authority
 
