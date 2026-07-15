@@ -34,10 +34,28 @@ which extend `wagtailadmin/base.html`.
   `docs/design.md` §9). Never reference Wagtail's `--w-color-*` tokens here —
   they aren't loaded outside the admin.
 
-> The public frontend is still a stub (`docs/design.md` §9 pages are TODO). The
-> concrete `--color-*` token set isn't established in code yet; when the SPA
-> styling lands, list the canonical tokens here the way the admin tokens are
-> listed below.
+## Key `--color-*` frontend tokens
+
+Declared in `frontend/src/assets/main.css` (Tailwind v4 `@theme` — each token is
+also a Tailwind utility, e.g. `bg-background`, `text-muted-foreground`). Light
+and dark values switch via the `.dark` class on `<html>`; severity colors are
+identical in both themes.
+
+- **Surfaces:** `--color-background`, `--color-card`, `--color-popover`
+- **Text:** `--color-foreground`, `--color-muted-foreground`, plus per-surface
+  `--color-card-foreground`, `--color-popover-foreground`
+- **Chrome (neutral slate — deliberately not red):** `--color-primary`,
+  `--color-primary-foreground`, `--color-secondary`, `--color-muted`,
+  `--color-accent` (+ their `-foreground` pairs)
+- **Lines & focus:** `--color-border`, `--color-input`, `--color-ring`
+- **Errors:** `--color-destructive`, `--color-destructive-foreground`
+- **Brand:** `--color-brand` — the logo red; logo and small accents ONLY, never
+  chrome (red must keep its exclusive "Severe" meaning next to alert data)
+- **Severity (MeteoAlarm, data displays only):** `--color-severity-extreme`,
+  `--color-severity-severe`, `--color-severity-moderate`, `--color-severity-minor`
+
+In Vue SFCs, style with Tailwind utilities backed by these tokens. In
+server-rendered public templates, reference the tokens from `extra_css` blocks.
 
 ## Key `--w-color-*` tokens
 

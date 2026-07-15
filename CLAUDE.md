@@ -60,6 +60,7 @@ make dev-build
 make dev-up                 # foreground (dev-up-d for detached)
 make dev-createsuperuser
 make dev-test               # pytest inside the app container
+make dev-test-js            # Vitest for the explorer SPA (frontend/)
 make dev-shell              # bash in the app container
 make dev-migrate            # or dev-makemigrations
 make dev-create-tile-function   # (re)create the Martin tile function

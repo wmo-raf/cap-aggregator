@@ -172,6 +172,10 @@ docker
 
 staticfiles/
 media/
+
+# Frontend (Vite) — build artifacts land in src/capaggregator/static/frontend/
+frontend/node_modules/
+src/capaggregator/static/frontend/
 deploy/mosquitto/passwd
 deploy/mosquitto/acl
 docker-data/

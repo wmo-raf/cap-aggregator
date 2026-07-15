@@ -15,7 +15,8 @@ MANAGE = capagg
 	dev-build dev-up dev-up-d dev-down dev-stop dev-restart dev-ps dev-config dev-logs \
 	dev-app-logs dev-worker-default-logs dev-worker-ingestion-logs dev-beat-logs dev-consumer-logs \
 	dev-shell dev-worker-default-shell dev-worker-ingestion-shell \
-	dev-migrate dev-makemigrations dev-createsuperuser dev-sync-mosquitto dev-create-tile-function dev-test
+	dev-migrate dev-makemigrations dev-createsuperuser dev-sync-mosquitto dev-create-tile-function dev-test \
+	dev-test-js dev-vite-logs
 
 # ======================
 # PRODUCTION
@@ -146,3 +147,10 @@ dev-test:
 	$(DEV_DC) exec \
 	  -e "DATABASE_URL=postgis://$$DB_USER:$$DB_PASSWORD@capagg-db:5432/$$DB_NAME" \
 	  $(APP) $(MANAGE) test --keepdb $(TEST_ARGS)
+
+# Vitest (explorer SPA) — companion to dev-test
+dev-test-js:
+	$(DEV_DC) run --rm capagg-vite sh -c "npm install && npm test"
+
+dev-vite-logs:
+	$(DEV_DC) logs -f capagg-vite

@@ -65,7 +65,6 @@ wheels = [
 
 [[package]]
 name = "cap-aggregator"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "celery", extra = ["redis"] },
@@ -79,6 +78,7 @@ dependencies = [
     { name = "django-environ" },
     { name = "django-redis" },
     { name = "django-task-ferry" },
+    { name = "django-vite" },
     { name = "djangorestframework" },
     { name = "djangorestframework-gis" },
     { name = "drf-spectacular" },
@@ -116,6 +116,7 @@ requires-dist = [
     { name = "django-environ", specifier = ">=0.11" },
     { name = "django-redis", specifier = ">=5.4" },
     { name = "django-task-ferry", specifier = ">=0.1.1" },
+    { name = "django-vite", specifier = ">=3.0" },
     { name = "djangorestframework", specifier = ">=3.15" },
     { name = "djangorestframework-gis", specifier = ">=1.0" },
     { name = "drf-spectacular", specifier = ">=0.27" },
@@ -658,6 +659,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/cc/b4/d63da0e36e42fa0cf355d5692ee70066922ff9e8f54b30f69605d43cc9c5/django_treebeard-5.3.0.tar.gz", hash = "sha256:8606cefd3a65689e99d2a493e5af8a8ece450b96915c949b5c72f6f302cfbe19", size = 312630, upload-time = "2026-06-24T05:34:50.545Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/50/5a/7b9fa8374e3da778109d1135c6d0131cc3ad27ba3d5436ef3a3ae3f55e7d/django_treebeard-5.3.0-py3-none-any.whl", hash = "sha256:ae9e570fa74b4c882bc08def1f0c97d27f163b6285a19f3383027d074882e9f4", size = 82023, upload-time = "2026-06-24T05:34:49.133Z" },
+]
+
+[[package]]
+name = "django-vite"
+version = "3.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/23/fe/4be07f538bbf9bf8bf73b045552ec2a1b4fba67e3176abb30490b643368e/django_vite-3.1.0.tar.gz", hash = "sha256:8b4ffe4a9fa81ff568bfb195e74dde8694aaf13fd4b656ae60bf59cce08b85e8", size = 25434, upload-time = "2025-02-23T15:32:07.914Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/59/7df4b1077fa41b43b4e542696d75138dbb86a65f44248c607b3e0f1014ce/django_vite-3.1.0-py3-none-any.whl", hash = "sha256:4e46572bd6b1ce70784be129205dc2ffcbc7a3c19fea50bebfb72b327bbde5fc", size = 23579, upload-time = "2025-02-23T15:32:06.603Z" },
 ]
 
 [[package]]

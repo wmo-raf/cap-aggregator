@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "capaggregator.geocodes",
     "capaggregator.tiles",
     "capaggregator.api",
+    "capaggregator.home",
     # Wagtail
     "wagtail.contrib.forms",
     "wagtail.contrib.redirects",
@@ -58,6 +59,7 @@ INSTALLED_APPS = [
     "django_celery_results",
     "task_ferry",
     "django_countries",
+    "django_vite",
     # Django
     "django.contrib.admin",
     "django.contrib.auth",
@@ -161,6 +163,20 @@ STORAGES = {
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- django-vite (explorer SPA bundle) ---
+# dev_mode=True serves modules from the Vite dev server (capagg-vite service,
+# reached by the *browser* at localhost:5173); otherwise hashed assets are
+# resolved from the manifest built into static/frontend/ (see frontend/).
+DJANGO_VITE = {
+    "default": {
+        "dev_mode": env.bool("DJANGO_VITE_DEV_MODE", default=False),
+        "dev_server_host": env("DJANGO_VITE_DEV_SERVER_HOST", default="localhost"),
+        "dev_server_port": env.int("DJANGO_VITE_DEV_SERVER_PORT", default=5173),
+        "manifest_path": os.path.join(BASE_DIR, "static", "frontend", ".vite", "manifest.json"),
+        "static_url_prefix": "frontend",
+    }
+}
 
 WAGTAIL_SITE_NAME = "CAP Aggregator"
 WAGTAILADMIN_BASE_URL = env("WAGTAILADMIN_BASE_URL", default="http://localhost:8000")
