@@ -1,0 +1,47 @@
+{% load static django_vite %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}CAP Aggregator{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{% static 'images/cap-agg-logo.png' %}">
+    {% block meta %}{% endblock %}
+    {% include "includes/theme_boot.html" %}
+    {% vite_hmr_client %}
+    {% vite_asset 'src/public.ts' %}
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="flex min-h-dvh flex-col bg-background text-foreground">
+<header class="border-b border-border bg-card">
+    <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
+        <a href="/" class="flex items-center gap-2" title="CAP Aggregator home">
+            <img src="{% static 'images/cap-agg-logo.png' %}" alt="CAP Aggregator" class="h-9 w-auto">
+        </a>
+        <nav class="flex items-center gap-4 text-sm font-medium" aria-label="Site">
+            <a href="{% url 'explorer' %}" class="text-muted-foreground transition-colors hover:text-foreground">Map explorer</a>
+            <a href="/api/docs/" class="text-muted-foreground transition-colors hover:text-foreground">API</a>
+            <button type="button" data-theme-toggle
+                    class="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                    aria-label="Toggle dark mode">
+                <span data-theme-label>Dark</span>
+            </button>
+        </nav>
+    </div>
+</header>
+
+<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="border-t border-border bg-card">
+    <div class="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <p>CAP Aggregator — aggregated Common Alerting Protocol feeds from national alerting authorities.</p>
+        <nav class="flex gap-4" aria-label="Footer">
+            <a href="{% url 'explorer' %}" class="transition-colors hover:text-foreground">Explorer</a>
+            <a href="/api/docs/" class="transition-colors hover:text-foreground">API docs</a>
+        </nav>
+    </div>
+</footer>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

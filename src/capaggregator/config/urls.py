@@ -20,6 +20,8 @@ urlpatterns = [
     path("documents/", include(wagtaildocs_urls)),
     path("api/", include("capaggregator.api.urls")),
     path("api/ingest/", include("capaggregator.ingestion.urls")),
+    # Public alert detail pages (chain-canonical)
+    path("alerts/", include("capaggregator.alerts.urls")),
     # Explorer SPA shell — everything under /explorer/ is routed client-side
     re_path(r"^explorer/", include("capaggregator.home.urls")),
     path("", include(wagtail_urls)),

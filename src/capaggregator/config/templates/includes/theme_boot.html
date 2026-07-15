@@ -1,0 +1,9 @@
+{# Apply the stored theme before first paint to avoid a light/dark flash. Must run pre-paint, hence inline in <head> rather than an extra_js block. #}
+<script>
+    (() => {
+        const stored = localStorage.getItem('capagg-theme');
+        const dark = stored === 'dark' ||
+            (stored === null && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', dark);
+    })();
+</script>

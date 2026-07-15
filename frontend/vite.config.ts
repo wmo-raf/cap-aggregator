@@ -20,7 +20,13 @@ export default defineConfig({
     outDir: "../src/capaggregator/static/frontend",
     emptyOutDir: true,
     rollupOptions: {
-      input: "src/main.ts",
+      // main: explorer SPA · public: server-rendered pages (tokens + theme
+      // toggle) · alert-detail: progressive area map on the detail page
+      input: {
+        main: "src/main.ts",
+        public: "src/public.ts",
+        "alert-detail": "src/alert-detail.ts",
+      },
     },
   },
   server: {

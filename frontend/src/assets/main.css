@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Server-rendered public templates (base.html, alert detail, …) use Tailwind
+ * utilities too — scan them so their classes are generated. */
+@source "../../../src/capaggregator";
+
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -99,5 +103,54 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Components for server-rendered templates (alert detail, base chrome).
+ * Severity colors are data colors — text contrast is fixed per band. */
+@layer components {
+  .severity-badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white;
+  }
+  .severity-badge--extreme {
+    background-color: var(--color-severity-extreme);
+  }
+  .severity-badge--severe {
+    background-color: var(--color-severity-severe);
+  }
+  .severity-badge--moderate {
+    background-color: var(--color-severity-moderate);
+    color: oklch(0.205 0 0);
+  }
+  .severity-badge--minor {
+    background-color: var(--color-severity-minor);
+    color: oklch(0.205 0 0);
+  }
+  .severity-badge--unknown {
+    @apply bg-muted text-muted-foreground;
+  }
+
+  .alert-status-banner {
+    @apply rounded-md border px-4 py-3 text-sm;
+  }
+  .alert-status-banner--cancelled {
+    @apply border-destructive/40 bg-destructive/10;
+  }
+  .alert-status-banner--expired {
+    @apply border-border bg-muted text-muted-foreground;
+  }
+
+  .alert-facts {
+    @apply grid grid-cols-2 gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-3;
+  }
+  .alert-facts dt {
+    @apply text-xs font-medium tracking-wide text-muted-foreground uppercase;
+  }
+  .alert-facts dd {
+    @apply text-sm;
+  }
+
+  .alert-area-map {
+    @apply h-72 w-full rounded-lg border border-border;
   }
 }
