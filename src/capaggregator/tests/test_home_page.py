@@ -1,4 +1,5 @@
-"""Wagtail HomePage: hero + CTA, cached stats strip, latest alerts (issue #48)."""
+"""Wagtail HomePage: hero + CTA, current-situation stat cards, and all active
+alerts grouped per authority (issues #48 + homepage improvements round)."""
 
 from datetime import timedelta
 
@@ -9,7 +10,11 @@ from django.utils import timezone
 from wagtail.models import Page, Site
 
 from capaggregator.home.models import HomePage
-from capaggregator.tests.factories import create_event_chain, create_source_authority
+from capaggregator.tests.factories import (
+    create_event_chain,
+    create_source_authority,
+    create_source_event,
+)
 
 
 def install_home_page(**kwargs):
@@ -46,46 +51,7 @@ class HomePageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "capagg-hero")
         self.assertContains(response, 'href="/explorer/"')
-        # default hero look when no image is uploaded
         self.assertContains(response, "capagg-hero--default")
-
-    def test_stats_strip_matches_seeded_data(self):
-        create_event_chain(self.authority)
-        create_event_chain(self.authority, is_cancelled=True)  # not active
-        create_source_authority(name="Uganda Met", country="ug", sender_values=["u@x"])
-        create_source_authority(name="Retired", country="tz", sender_values=["r@x"], active=False)
-
-        response = self.client.get("/")
-
-        stats = response.context["stats"]
-        self.assertEqual(stats["active_alerts"], 1)
-        self.assertEqual(stats["authorities"], 2)  # active only
-        self.assertEqual(stats["countries"], 2)  # ke + ug
-
-    def test_latest_alerts_are_listed_with_detail_links(self):
-        older = create_event_chain(
-            self.authority,
-            sent=timezone.now() - timedelta(hours=2),
-            infos=[{"headline": "Older flood warning"}],
-        )
-        newest = create_event_chain(self.authority, infos=[{"headline": "Newest cyclone warning"}])
-
-        response = self.client.get("/")
-
-        content = response.content.decode()
-        self.assertIn("Newest cyclone warning", content)
-        self.assertIn(reverse("alert_detail", args=[newest.pk]), content)
-        self.assertLess(content.index("Newest cyclone warning"), content.index("Older flood warning"))
-        self.assertIn(reverse("alert_detail", args=[older.pk]), content)
-
-    def test_stats_are_cached_briefly(self):
-        create_event_chain(self.authority)
-        first = self.client.get("/").context["stats"]
-
-        create_event_chain(self.authority, infos=[{"headline": "Another"}])
-        second = self.client.get("/").context["stats"]
-
-        self.assertEqual(first, second)  # served from cache within the TTL
 
     def test_hero_copy_is_editor_controlled(self):
         self.home.hero_heading = "Every warning, one map"
@@ -94,3 +60,134 @@ class HomePageTests(TestCase):
         response = self.client.get("/")
 
         self.assertContains(response, "Every warning, one map")
+
+
+class StatCardsTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        install_home_page()
+        self.kenya = create_source_authority(name="Kenya Met")
+
+    def stats(self):
+        return self.client.get("/").context["stats"]
+
+    def test_active_alerts_with_severity_breakdown(self):
+        create_event_chain(self.kenya, infos=[{"severity": "Severe"}])
+        create_event_chain(self.kenya, infos=[{"severity": "Severe", "headline": "Second"}])
+        create_event_chain(self.kenya, infos=[{"severity": "Minor", "headline": "Third"}])
+        create_event_chain(self.kenya, is_cancelled=True)  # not counted
+
+        stats = self.stats()
+
+        self.assertEqual(stats["active_alerts"], 3)
+        by_severity = {i["severity"]: i["count"] for i in stats["alert_severity_counts"]}
+        self.assertEqual(by_severity, {"Extreme": 0, "Severe": 2, "Moderate": 0, "Minor": 1})
+
+    def test_countries_with_alerts_classified_by_worst_severity(self):
+        # Kenya: Severe + Moderate → one country, classified Severe
+        create_event_chain(self.kenya, infos=[{"severity": "Severe"}])
+        create_event_chain(self.kenya, infos=[{"severity": "Moderate", "headline": "Lesser"}])
+        # Uganda: covered but quiet
+        create_source_authority(name="Uganda Met", country="ug", sender_values=["u@x"])
+
+        stats = self.stats()
+
+        self.assertEqual(stats["countries_with_alerts"], 1)
+        self.assertEqual(stats["countries_covered"], 2)
+        by_severity = {i["severity"]: i["count"] for i in stats["country_severity_counts"]}
+        self.assertEqual(by_severity["Severe"], 1)
+        self.assertEqual(by_severity["Moderate"], 0)  # worst wins — Kenya counted once
+        # the card shows current-vs-covered
+        self.assertContains(self.client.get("/"), "of 2 covered")
+
+    def test_system_status_operational_within_window(self):
+        create_source_event(authority=self.kenya, ok=True)
+
+        stats = self.stats()
+
+        self.assertEqual(stats["status"], "operational")
+        self.assertIsNotNone(stats["last_check"])
+
+    def test_system_status_degraded_when_contact_is_stale(self):
+        create_source_event(
+            authority=self.kenya, ok=True, occurred_at=timezone.now() - timedelta(hours=2)
+        )
+
+        self.assertEqual(self.stats()["status"], "degraded")
+
+    def test_system_status_unknown_without_any_successful_contact(self):
+        create_source_event(authority=self.kenya, ok=False)
+
+        self.assertEqual(self.stats()["status"], "unknown")
+
+    def test_stats_are_cached_briefly(self):
+        create_event_chain(self.kenya)
+        first = self.stats()
+
+        create_event_chain(self.kenya, infos=[{"headline": "Another"}])
+        second = self.stats()
+
+        self.assertEqual(first, second)  # served from cache within the TTL
+
+
+class AlertGroupTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        install_home_page()
+        self.kenya = create_source_authority(name="Kenya Met")
+        self.uganda = create_source_authority(name="Uganda Met", country="ug", sender_values=["u@x"])
+
+    def test_groups_order_worst_severity_first(self):
+        create_event_chain(self.kenya, infos=[{"severity": "Severe", "headline": "Kenya severe"}])
+        create_event_chain(self.uganda, infos=[{"severity": "Extreme", "headline": "Uganda extreme"}])
+
+        groups = self.client.get("/").context["alert_groups"]
+
+        self.assertEqual([g["authority"].name for g in groups], ["Uganda Met", "Kenya Met"])
+        self.assertEqual(groups[0]["country_name"], "Uganda")
+        self.assertEqual(groups[0]["flag"], "🇺🇬")
+
+    def test_all_alerts_rendered_first_two_visible_rest_expandable(self):
+        base = timezone.now()
+        for i in range(4):
+            create_event_chain(
+                self.kenya,
+                sent=base - timedelta(hours=i),
+                infos=[{"headline": f"Kenya alert {i}"}],
+            )
+
+        response = self.client.get("/")
+        content = response.content.decode()
+
+        # every alert is in the HTML (server-rendered)
+        for i in range(4):
+            self.assertIn(f"Kenya alert {i}", content)
+        # the two beyond the visible limit are collapsed
+        self.assertEqual(content.count("data-extra"), 2)
+        self.assertContains(response, "View 2 more")
+        # newest first: alert 0 is visible, alert 3 is collapsed
+        visible_region, collapsed_region = content.split("data-extra", 1)
+        self.assertIn("Kenya alert 0", visible_region)
+        self.assertIn("Kenya alert 3", collapsed_region)
+
+    def test_each_alert_links_to_its_detail_page(self):
+        chain = create_event_chain(self.kenya)
+
+        self.assertContains(self.client.get("/"), reverse("alert_detail", args=[chain.pk]))
+
+    def test_severity_filter_panel_and_filterable_markup(self):
+        create_event_chain(self.kenya, infos=[{"severity": "Severe"}])
+
+        response = self.client.get("/")
+        content = response.content.decode()
+
+        self.assertEqual(content.count("data-severity-filter"), 4)  # one checkbox per level
+        self.assertIn('data-severity="severe"', content)  # items are filterable client-side
+        self.assertIn("data-group-count", content)
+
+    def test_stats_legend_explains_the_severity_colors(self):
+        response = self.client.get("/")
+
+        self.assertContains(response, "Severity color legend")
+        for level in ("Extreme", "Severe", "Moderate", "Minor"):
+            self.assertContains(response, f"severity-dot--{level.lower()}")

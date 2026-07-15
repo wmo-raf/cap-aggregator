@@ -165,6 +165,41 @@
     @apply text-xs font-semibold tracking-wide text-muted-foreground uppercase;
   }
 
+  /* Homepage stat cards: severity/status dot rows */
+  .stat-severity {
+    @apply inline-flex items-center gap-1.5 text-sm font-medium;
+  }
+  .stat-severity--zero {
+    @apply text-muted-foreground opacity-50;
+  }
+  .severity-dot {
+    @apply inline-block size-2.5 rounded-full;
+  }
+  .severity-dot--extreme {
+    background-color: var(--color-severity-extreme);
+  }
+  .severity-dot--severe {
+    background-color: var(--color-severity-severe);
+  }
+  .severity-dot--moderate {
+    background-color: var(--color-severity-moderate);
+  }
+  .severity-dot--minor {
+    background-color: var(--color-severity-minor);
+  }
+  .status-dot {
+    @apply inline-block size-3 rounded-full;
+  }
+  .status-dot--operational {
+    background-color: #22c55e;
+  }
+  .status-dot--degraded {
+    background-color: var(--color-severity-moderate);
+  }
+  .status-dot--unknown {
+    @apply bg-muted-foreground/50;
+  }
+
   /* Lineage timeline message-type badges (alert detail + version pages) */
   .timeline-type {
     @apply inline-flex w-16 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold;
