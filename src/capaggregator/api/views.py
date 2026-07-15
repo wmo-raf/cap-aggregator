@@ -1,10 +1,13 @@
 """API views — search, authorities, histogram, SSE live stream."""
 
 import json
+from datetime import timedelta
 
 from django.db.models import Count, Q
 from django.http import JsonResponse, StreamingHttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.generics import ListAPIView
 
 from capaggregator.alerts.models import ResolvedAlert
@@ -39,6 +42,25 @@ class AuthorityListView(ListAPIView):
         )
 
 
+def _parse_bound(value, *, end=False):
+    """ISO datetime, or bare date. A bare date used as an upper bound is
+    inclusive of that whole day (< next midnight). Checked date-first:
+    Django 5's parse_datetime (fromisoformat) also accepts bare dates."""
+    if d := parse_date(value):
+        dt = timezone.make_aware(timezone.datetime(d.year, d.month, d.day))
+        return (dt + timedelta(days=1), True) if end else (dt, False)
+    if dt := parse_datetime(value):
+        return (timezone.make_aware(dt) if timezone.is_naive(dt) else dt), False
+    return None, False
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter("effective_from", str, description="Range mode: alerts effective on/after this ISO datetime or date."),
+        OpenApiParameter("effective_to", str, description="Range mode: alerts effective up to this ISO datetime (or through this date). Range mode includes expired alerts."),
+        OpenApiParameter("t", str, description="Point-in-time: alerts active at this instant (default: now when active=true)."),
+    ]
+)
 class AlertSearchView(ListAPIView):
     """GET /api/search/?country=ke&severity=Severe,Extreme&t=...&q=flood&bbox=..."""
 
@@ -66,12 +88,22 @@ class AlertSearchView(ListAPIView):
         if event := params.get("event"):
             qs = qs.filter(event__icontains=event)
 
-        # Point-in-time (default: only currently active) or interval
-        if t := params.get("t"):
+        # Time: effective-date range (archive — includes expired), else
+        # point-in-time t, else the currently-active default
+        effective_from = params.get("effective_from")
+        effective_to = params.get("effective_to")
+        if effective_from or effective_to:
+            if effective_from:
+                bound, _ = _parse_bound(effective_from)
+                if bound:
+                    qs = qs.filter(effective__gte=bound)
+            if effective_to:
+                bound, exclusive = _parse_bound(effective_to, end=True)
+                if bound:
+                    qs = qs.filter(**{"effective__lt" if exclusive else "effective__lte": bound})
+        elif t := params.get("t"):
             qs = qs.filter(effective__lte=t, expires__gt=t)
         elif params.get("active", "true").lower() == "true":
-            from django.utils import timezone
-
             now = timezone.now()
             qs = qs.filter(effective__lte=now, expires__gt=now)
 

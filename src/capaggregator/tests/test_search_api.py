@@ -1,7 +1,10 @@
 """Search API contract pieces the frontend depends on."""
 
+from datetime import timedelta
+
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from capaggregator.tests.factories import create_event_chain, create_source_authority
 
@@ -15,3 +18,65 @@ class SearchApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         feature = response.json()["results"]["features"][0]
         self.assertEqual(feature["properties"]["chain"], chain.pk)
+
+
+class EffectiveRangeTests(TestCase):
+    """The Table view browses alert history by effective-date *range* —
+    deliberately different semantics from the map's point-in-time `t`."""
+
+    def setUp(self):
+        self.authority = create_source_authority()
+        base = timezone.now()
+
+        def chain_on(days_ago, headline):
+            eff = base - timedelta(days=days_ago)
+            return create_event_chain(
+                self.authority,
+                sent=eff,
+                infos=[{"effective": eff, "expires": eff + timedelta(hours=6), "headline": headline}],
+            )
+
+        self.old = chain_on(20, "Twenty days ago")
+        self.mid = chain_on(10, "Ten days ago")
+        self.recent = chain_on(2, "Two days ago")
+        self.base = base
+
+    def search(self, **params):
+        response = self.client.get(reverse("alert_search"), params)
+        self.assertEqual(response.status_code, 200)
+        return [f["properties"]["headline"] for f in response.json()["results"]["features"]]
+
+    def iso_days_ago(self, days):
+        return (self.base - timedelta(days=days)).isoformat()
+
+    def test_range_returns_only_alerts_effective_within_it(self):
+        headlines = self.search(
+            effective_from=self.iso_days_ago(12), effective_to=self.iso_days_ago(5)
+        )
+
+        self.assertEqual(headlines, ["Ten days ago"])
+
+    def test_range_mode_includes_expired_alerts(self):
+        """Archive semantics: a range query must not apply the active-now default."""
+        headlines = self.search(effective_from=self.iso_days_ago(30))
+
+        self.assertEqual(len(headlines), 3)
+
+    def test_date_only_bounds_are_inclusive_of_the_end_day(self):
+        target_day = (self.base - timedelta(days=2)).date().isoformat()
+
+        headlines = self.search(effective_from=target_day, effective_to=target_day)
+
+        self.assertEqual(headlines, ["Two days ago"])
+
+    def test_range_composes_with_facet_filters(self):
+        headlines = self.search(effective_from=self.iso_days_ago(30), severity="Minor")
+
+        self.assertEqual(headlines, [])  # all factory chains are Severe
+
+    def test_range_params_are_documented_in_the_schema(self):
+        response = self.client.get(reverse("api_schema"))
+
+        content = response.content.decode()
+        self.assertIn("effective_from", content)
+        self.assertIn("effective_to", content)
