@@ -1,6 +1,10 @@
-# Compose stacks: production base + dev overlay
-DC = docker compose -f docker-compose.yml
-DEV_DC = docker compose -f docker-compose.yml -f docker-compose.dev.yml
+# Compose stacks: production base + dev overlay.
+# docker-compose.override.yml is machine-local (gitignored) and applied last
+# when present — explicit -f chains disable compose's auto-override loading,
+# so it must be included by hand. See docker-compose.override.yml.sample.
+OVERRIDE = $(shell test -f docker-compose.override.yml && echo -f docker-compose.override.yml)
+DC = docker compose -f docker-compose.yml $(OVERRIDE)
+DEV_DC = docker compose -f docker-compose.yml -f docker-compose.dev.yml $(OVERRIDE)
 
 APP = capagg-app
 WORKER_DEFAULT = capagg-worker-default
