@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronLeft, ChevronRight, Table2 } from "lucide-vue-next";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
+import ExplorerSidebar from "@/components/ExplorerSidebar.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import { fetchAlertTable, fetchAuthorities, type TableAlert } from "@/lib/api";
 import { type DateRange, rangeFromQuery, rangeToQuery, TABLE_PAGE_SIZE } from "@/lib/dateRange";
@@ -83,23 +84,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="flex h-full flex-col gap-4 overflow-auto p-4 md:p-6">
-    <header class="flex flex-col gap-1">
-      <h1 class="flex items-center gap-2 text-xl font-semibold">
-        <Table2 class="size-5 text-muted-foreground" aria-hidden="true" />
-        Alert archive
-      </h1>
-      <p class="text-sm text-muted-foreground">Alerts issued within the selected date range.</p>
-    </header>
-
-    <div class="flex flex-col gap-4 lg:flex-row">
-      <aside class="flex w-full shrink-0 flex-col gap-3 lg:w-64">
+  <section class="relative flex h-full w-full">
+    <ExplorerSidebar title="Alert archive" description="Alerts issued within the selected date range.">
         <section class="sidebar-panel" aria-label="Date range">
           <header class="sidebar-panel__header">
             <h3>Date range</h3>
           </header>
-          <div class="flex items-center gap-2 p-3">
-            <label class="flex min-w-0 flex-1 flex-col text-xs text-muted-foreground">
+          <div class="flex flex-col gap-2 p-3">
+            <label class="flex flex-col text-xs text-muted-foreground">
               From
               <input
                 type="date"
@@ -109,7 +101,7 @@ onMounted(async () => {
                 @change="range = { ...range, from: ($event.target as HTMLInputElement).value }"
               />
             </label>
-            <label class="flex min-w-0 flex-1 flex-col text-xs text-muted-foreground">
+            <label class="flex flex-col text-xs text-muted-foreground">
               To
               <input
                 type="date"
@@ -123,9 +115,9 @@ onMounted(async () => {
         </section>
 
         <FilterPanel v-model="filters" :countries="countries" />
-      </aside>
+      </ExplorerSidebar>
 
-      <div class="min-w-0 flex-1">
+      <div class="min-w-0 flex-1 overflow-auto p-4 md:p-6">
         <p v-if="state === 'loading'" class="text-sm text-muted-foreground">Loading alerts…</p>
         <p v-else-if="state === 'error'" class="text-sm text-destructive" role="alert">
           Could not load alerts. Please try again later.
@@ -222,6 +214,5 @@ onMounted(async () => {
           </div>
         </div>
       </div>
-    </div>
   </section>
 </template>

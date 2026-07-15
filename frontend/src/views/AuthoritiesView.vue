@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ExternalLink, Landmark } from "lucide-vue-next";
+import { ExternalLink } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
+import ExplorerSidebar from "@/components/ExplorerSidebar.vue";
 import { type Authority, fetchAuthorities } from "@/lib/api";
 import {
   type AuthoritiesState,
@@ -42,19 +43,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-auto p-4 md:p-6">
-    <header class="flex flex-col gap-1">
-      <h1 class="flex items-center gap-2 text-xl font-semibold">
-        <Landmark class="size-5 text-muted-foreground" aria-hidden="true" />
-        Alerting authorities
-      </h1>
-      <p class="text-sm text-muted-foreground">
-        National authorities whose CAP alerts this aggregator carries.
-      </p>
-    </header>
-
-    <div class="flex flex-col gap-4 md:flex-row">
-      <aside class="w-full shrink-0 md:w-56">
+  <section class="relative flex h-full w-full">
+    <ExplorerSidebar title="Alerting authorities" description="National authorities whose CAP alerts this aggregator carries.">
         <section class="sidebar-panel" aria-label="Authority filters">
           <header class="sidebar-panel__header">
             <h3>Filters</h3>
@@ -84,9 +74,9 @@ onMounted(async () => {
             </fieldset>
           </div>
         </section>
-      </aside>
+      </ExplorerSidebar>
 
-      <div class="min-w-0 flex-1">
+      <div class="min-w-0 flex-1 overflow-auto p-4 md:p-6">
         <p v-if="loadState === 'loading'" class="text-sm text-muted-foreground">Loading authorities…</p>
         <p v-else-if="loadState === 'error'" class="text-sm text-destructive" role="alert">
           Could not load the authorities list. Please try again later.
@@ -160,6 +150,5 @@ onMounted(async () => {
           </section>
         </div>
       </div>
-    </div>
   </section>
 </template>

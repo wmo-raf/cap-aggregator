@@ -190,21 +190,20 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative h-full w-full">
-    <!-- maplibre's own .maplibregl-map class forces position:relative, so size explicitly rather than with absolute/inset -->
-    <div ref="container" class="h-full w-full" data-testid="map-container"></div>
-    <div class="pointer-events-none absolute inset-0 z-10">
-      <div class="absolute top-0 bottom-0 left-0">
-        <AlertSidebar
-          :alerts="alerts"
-          :total="total"
-          :state="listState"
-          :filters="filters"
-          :countries="countries"
-          @update:filters="filters = $event"
-        />
-      </div>
-      <div class="pointer-events-auto absolute top-24 right-3 flex flex-col items-stretch gap-1.5 rounded-lg border border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
+  <div class="relative flex h-full w-full">
+    <AlertSidebar
+      :alerts="alerts"
+      :total="total"
+      :state="listState"
+      :filters="filters"
+      :countries="countries"
+      @update:filters="filters = $event"
+    />
+    <div class="relative min-w-0 flex-1">
+      <!-- maplibre's own .maplibregl-map class forces position:relative, so size explicitly rather than with absolute/inset -->
+      <div ref="container" class="h-full w-full" data-testid="map-container"></div>
+      <div class="pointer-events-none absolute inset-0 z-10">
+        <div class="pointer-events-auto absolute top-24 right-3 flex flex-col items-stretch gap-1.5 rounded-lg border border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
         <p class="text-center">
           <span class="block text-xl leading-tight font-semibold" data-testid="global-count">{{ globalCount ?? "—" }}</span>
           <span class="block text-[10px] tracking-wide text-muted-foreground uppercase">active alerts</span>
@@ -220,12 +219,13 @@ onUnmounted(() => {
           Reset
         </button>
       </div>
-      <div class="absolute right-3 bottom-6 flex flex-col items-end gap-2">
-        <SeverityLegend />
-        <BasemapSwitcher :active="activeBasemap" @select="manualBasemap = $event" />
-      </div>
-      <div class="absolute bottom-6 left-1/2 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2">
-        <TimeControl :model-value="selectedTime" @update:model-value="selectedTime = $event" />
+        <div class="absolute right-3 bottom-6 flex flex-col items-end gap-2">
+          <SeverityLegend />
+          <BasemapSwitcher :active="activeBasemap" @select="manualBasemap = $event" />
+        </div>
+        <div class="absolute bottom-6 left-1/2 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2">
+          <TimeControl :model-value="selectedTime" @update:model-value="selectedTime = $event" />
+        </div>
       </div>
     </div>
   </div>

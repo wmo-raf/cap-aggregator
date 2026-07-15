@@ -159,7 +159,7 @@
     @apply overflow-hidden rounded-lg border border-border/80 bg-card;
   }
   .sidebar-panel__header {
-    @apply flex items-center justify-between border-b border-border/60 px-3 py-2;
+    @apply flex items-center justify-between border-b border-border/60 bg-muted px-3 py-2;
   }
   .sidebar-panel__header h3 {
     @apply text-xs font-semibold tracking-wide text-muted-foreground uppercase;
