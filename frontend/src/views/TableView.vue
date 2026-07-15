@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight, Table2 } from "lucide-vue-next";
+import { ChevronDown, ChevronLeft, ChevronRight, Table2 } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -12,7 +12,7 @@ import {
   filtersFromRouteQuery,
   filtersToRouteQuery,
 } from "@/lib/filters";
-import { SEVERITIES, SEVERITY_FALLBACK_COLOR } from "@/lib/severity";
+import { groupBySeverity } from "@/lib/grouping";
 
 const route = useRoute();
 const router = useRouter();
@@ -25,6 +25,15 @@ const alerts = ref<TableAlert[]>([]);
 const total = ref(0);
 const state = ref<"loading" | "ready" | "error">("loading");
 const countries = ref<{ code: string; name: string }[]>([]);
+
+const groups = computed(() => groupBySeverity(alerts.value));
+const collapsed = ref(new Set<string>());
+
+function toggleGroup(value: string) {
+  const next = new Set(collapsed.value);
+  if (!next.delete(value)) next.add(value);
+  collapsed.value = next;
+}
 
 const pageStart = computed(() => Math.min(offset.value + 1, total.value));
 const pageEnd = computed(() => Math.min(offset.value + TABLE_PAGE_SIZE, total.value));
@@ -55,10 +64,6 @@ watch([filters, range], () => {
 
 watch(offset, load);
 
-function severityColor(severity: string): string {
-  return SEVERITIES.find((s) => s.value === severity.toLowerCase())?.color ?? SEVERITY_FALLBACK_COLOR;
-}
-
 function fmt(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "—";
 }
@@ -88,29 +93,35 @@ onMounted(async () => {
     </header>
 
     <div class="flex flex-col gap-4 lg:flex-row">
-      <aside class="w-full shrink-0 lg:w-64">
-        <div class="mb-3 flex items-center gap-2">
-          <label class="flex flex-col text-xs text-muted-foreground">
-            From
-            <input
-              type="date"
-              class="rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
-              :value="range.from"
-              data-testid="range-from"
-              @change="range = { ...range, from: ($event.target as HTMLInputElement).value }"
-            />
-          </label>
-          <label class="flex flex-col text-xs text-muted-foreground">
-            To
-            <input
-              type="date"
-              class="rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
-              :value="range.to"
-              data-testid="range-to"
-              @change="range = { ...range, to: ($event.target as HTMLInputElement).value }"
-            />
-          </label>
-        </div>
+      <aside class="flex w-full shrink-0 flex-col gap-3 lg:w-64">
+        <section class="sidebar-panel" aria-label="Date range">
+          <header class="sidebar-panel__header">
+            <h3>Date range</h3>
+          </header>
+          <div class="flex items-center gap-2 p-3">
+            <label class="flex min-w-0 flex-1 flex-col text-xs text-muted-foreground">
+              From
+              <input
+                type="date"
+                class="mt-0.5 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
+                :value="range.from"
+                data-testid="range-from"
+                @change="range = { ...range, from: ($event.target as HTMLInputElement).value }"
+              />
+            </label>
+            <label class="flex min-w-0 flex-1 flex-col text-xs text-muted-foreground">
+              To
+              <input
+                type="date"
+                class="mt-0.5 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
+                :value="range.to"
+                data-testid="range-to"
+                @change="range = { ...range, to: ($event.target as HTMLInputElement).value }"
+              />
+            </label>
+          </div>
+        </section>
+
         <FilterPanel v-model="filters" :countries="countries" />
       </aside>
 
@@ -137,28 +148,54 @@ onMounted(async () => {
               </tr>
             </thead>
             <tbody>
-              <tr
-                v-for="alert in alerts"
-                :key="alert.id"
-                class="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-accent"
-              >
-                <td class="px-3 py-2">
-                  <a :href="`/alerts/${alert.chain}/`" class="flex items-center gap-2 font-medium">
-                    <span
-                      class="inline-block size-2.5 shrink-0 rounded-full"
-                      :style="{ backgroundColor: severityColor(alert.severity) }"
-                      aria-hidden="true"
-                    ></span>
-                    <span class="max-w-64 truncate">{{ alert.headline || alert.event }}</span>
-                  </a>
-                </td>
-                <td class="px-3 py-2">{{ alert.severity }}</td>
-                <td class="px-3 py-2 text-muted-foreground">{{ alert.authority }}</td>
-                <td class="px-3 py-2 uppercase text-muted-foreground">{{ alert.countries.join(", ") }}</td>
-                <td class="px-3 py-2 text-muted-foreground">{{ fmt(alert.effective) }}</td>
-                <td class="px-3 py-2 text-muted-foreground">{{ fmt(alert.expires) }}</td>
-                <td class="px-3 py-2 text-muted-foreground">{{ alert.status }}{{ alert.is_cancelled ? " (cancelled)" : "" }}</td>
-              </tr>
+              <template v-for="group in groups" :key="group.value">
+                <tr class="border-b border-border bg-muted/25">
+                  <td colspan="7" class="px-3 py-1.5">
+                    <button
+                      type="button"
+                      class="flex w-full items-center justify-between gap-2 text-left text-sm font-semibold"
+                      :aria-expanded="!collapsed.has(group.value)"
+                      :data-severity-group="group.value"
+                      @click="toggleGroup(group.value)"
+                    >
+                      <span class="flex items-center gap-2">
+                        <span class="inline-block size-2.5 rounded-full" :style="{ backgroundColor: group.color }" aria-hidden="true"></span>
+                        {{ group.label }}
+                        <span class="text-xs font-normal text-muted-foreground">{{ group.items.length }}</span>
+                      </span>
+                      <ChevronDown
+                        class="size-4 text-muted-foreground transition-transform"
+                        :class="collapsed.has(group.value) ? '-rotate-90' : ''"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </td>
+                </tr>
+                <template v-if="!collapsed.has(group.value)">
+                  <tr
+                    v-for="alert in group.items"
+                    :key="alert.id"
+                    class="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-accent"
+                  >
+                    <td class="px-3 py-2">
+                      <a :href="`/alerts/${alert.chain}/`" class="flex items-center gap-2 font-medium">
+                        <span
+                          class="inline-block size-2.5 shrink-0 rounded-full"
+                          :style="{ backgroundColor: group.color }"
+                          aria-hidden="true"
+                        ></span>
+                        <span class="max-w-64 truncate">{{ alert.headline || alert.event }}</span>
+                      </a>
+                    </td>
+                    <td class="px-3 py-2">{{ alert.severity }}</td>
+                    <td class="px-3 py-2 text-muted-foreground">{{ alert.authority }}</td>
+                    <td class="px-3 py-2 uppercase text-muted-foreground">{{ alert.countries.join(", ") }}</td>
+                    <td class="px-3 py-2 text-muted-foreground">{{ fmt(alert.effective) }}</td>
+                    <td class="px-3 py-2 text-muted-foreground">{{ fmt(alert.expires) }}</td>
+                    <td class="px-3 py-2 text-muted-foreground">{{ alert.status }}{{ alert.is_cancelled ? " (cancelled)" : "" }}</td>
+                  </tr>
+                </template>
+              </template>
             </tbody>
           </table>
         </div>

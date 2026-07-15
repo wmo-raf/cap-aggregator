@@ -154,6 +154,17 @@
     @apply h-72 w-full rounded-lg border border-border;
   }
 
+  /* Sidebar sections (explorer filter/list panels) — distinct bordered blocks */
+  .sidebar-panel {
+    @apply overflow-hidden rounded-lg border border-border/80 bg-card;
+  }
+  .sidebar-panel__header {
+    @apply flex items-center justify-between border-b border-border/60 px-3 py-2;
+  }
+  .sidebar-panel__header h3 {
+    @apply text-xs font-semibold tracking-wide text-muted-foreground uppercase;
+  }
+
   /* Lineage timeline message-type badges (alert detail + version pages) */
   .timeline-type {
     @apply inline-flex w-16 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold;

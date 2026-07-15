@@ -1,7 +1,16 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createMemoryHistory, createRouter } from "vue-router";
 
+import { routes } from "@/router";
 import AuthoritiesView from "@/views/AuthoritiesView.vue";
+
+async function mountView() {
+  const router = createRouter({ history: createMemoryHistory("/explorer/"), routes });
+  await router.push("/authorities");
+  await router.isReady();
+  return mount(AuthoritiesView, { global: { plugins: [router] } });
+}
 
 const KENYA = {
   name: "Kenya Met",
@@ -35,7 +44,7 @@ describe("AuthoritiesView", () => {
   it("lists authorities from /api/authorities/ with flag, count and website link", async () => {
     const fetchMock = stubFetch({ results: [KENYA, QUIET], next: null });
 
-    const wrapper = mount(AuthoritiesView);
+    const wrapper = await mountView();
     await flushPromises();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/authorities/", expect.anything());
@@ -51,7 +60,7 @@ describe("AuthoritiesView", () => {
   it("shows the active alert count per authority", async () => {
     stubFetch({ results: [KENYA], next: null });
 
-    const wrapper = mount(AuthoritiesView);
+    const wrapper = await mountView();
     await flushPromises();
 
     expect(wrapper.find("[data-testid='alert-count']").text()).toContain("3");
@@ -60,7 +69,7 @@ describe("AuthoritiesView", () => {
   it("shows an error state when the API fails", async () => {
     stubFetch({}, false);
 
-    const wrapper = mount(AuthoritiesView);
+    const wrapper = await mountView();
     await flushPromises();
 
     expect(wrapper.text().toLowerCase()).toContain("could not load");
