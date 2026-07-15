@@ -27,7 +27,7 @@ class ResolvedAlertSerializer(GeoFeatureModelSerializer):
         model = ResolvedAlert
         geo_field = "centroid"
         fields = [
-            "id", "identifier", "authority", "event", "headline", "msg_type", "status",
+            "id", "chain", "identifier", "authority", "event", "headline", "msg_type", "status",
             "severity", "urgency", "certainty", "categories", "countries", "languages",
             "onset", "effective", "expires", "is_cancelled",
         ]
