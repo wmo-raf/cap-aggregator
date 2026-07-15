@@ -1,0 +1,10 @@
+# Machine-local compose overrides — copy to docker-compose.override.yml (gitignored).
+# The Makefile appends it (last, so it wins) to every compose invocation when present.
+#
+# This sample joins the stack to a shared external network so companion stacks
+# on the same host can reach these containers by name.
+# Create the network once:  docker network create climtech
+networks:
+  default:
+    external: true
+    name: ${NETWORK_NAME:-climtech}

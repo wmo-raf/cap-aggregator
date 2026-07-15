@@ -230,10 +230,3 @@ services:
       - capagg-app
       - capagg-martin
     restart: unless-stopped
-
-# Shared external network so companion stacks (e.g. other climtech services)
-# can reach these containers by name. Create once: docker network create climtech
-networks:
-  default:
-    external: true
-    name: ${NETWORK_NAME:-climtech}

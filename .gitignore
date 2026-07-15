@@ -179,3 +179,6 @@ src/capaggregator/static/frontend/
 deploy/mosquitto/passwd
 deploy/mosquitto/acl
 docker-data/
+
+# Machine-local compose overrides (see docker-compose.override.yml.sample)
+docker-compose.override.yml
