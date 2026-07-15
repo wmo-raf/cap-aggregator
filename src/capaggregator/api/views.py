@@ -1,13 +1,42 @@
-"""API views — search, histogram, SSE live stream. Skeletons to build on."""
+"""API views — search, authorities, histogram, SSE live stream."""
 
 import json
 
+from django.db.models import Count, Q
 from django.http import JsonResponse, StreamingHttpResponse
+from django.utils import timezone
 from rest_framework.generics import ListAPIView
 
 from capaggregator.alerts.models import ResolvedAlert
+from capaggregator.sources.models import SourceAuthority
 
-from .serializers import ResolvedAlertSerializer
+from .serializers import ResolvedAlertSerializer, SourceAuthoritySerializer
+
+
+class AuthorityListView(ListAPIView):
+    """GET /api/authorities/ — active authorities with their current activity.
+
+    Public read model for the explorer's Authorities view: name, slug, country,
+    website and the number of currently-active resolved alerts."""
+
+    serializer_class = SourceAuthoritySerializer
+
+    def get_queryset(self):
+        now = timezone.now()
+        return (
+            SourceAuthority.objects.filter(active=True)
+            .annotate(
+                active_alert_count=Count(
+                    "resolved_alerts",
+                    filter=Q(
+                        resolved_alerts__is_cancelled=False,
+                        resolved_alerts__effective__lte=now,
+                        resolved_alerts__expires__gt=now,
+                    ),
+                )
+            )
+            .order_by("name")
+        )
 
 
 class AlertSearchView(ListAPIView):

@@ -37,6 +37,11 @@ class SourceAuthority(models.Model):
         verbose_name=_("Country"),
         help_text=_("Primary country of the authority."),
     )
+    website = models.URLField(
+        blank=True,
+        verbose_name=_("Website"),
+        help_text=_("Official public website, linked from the frontend Authorities page."),
+    )
     sender_values = ArrayField(
         models.CharField(max_length=255),
         default=list,
@@ -112,6 +117,7 @@ class SourceAuthority(models.Model):
             [
                 FieldPanel("name"),
                 FieldPanel("country"),
+                FieldPanel("website"),
                 FieldPanel("sender_values"),
                 FieldPanel("contact_email"),
                 FieldPanel("active"),
