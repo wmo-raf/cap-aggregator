@@ -11,6 +11,8 @@ urlpatterns = [
     # Search over resolved state (country, severity, urgency, certainty, category,
     # event, msg_type, status, language, bbox, time interval, full-text q)
     path("search/", views.AlertSearchView.as_view(), name="alert_search"),
+    # Active authorities + current alert activity (explorer Authorities view)
+    path("authorities/", views.AuthorityListView.as_view(), name="authority_list"),
     # Alert counts per time bucket — powers the time-slider density histogram
     path("histogram/", views.histogram, name="alert_histogram"),
     # SSE stream of alert ids for live mode (Redis pub/sub 'capagg:alerts')
