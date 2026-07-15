@@ -25,48 +25,92 @@
             </div>
         </section>
 
-        <section aria-label="Coverage statistics">
+        <section aria-label="Current situation">
             <dl class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div class="rounded-lg border border-border bg-card p-5">
                     <dt class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Active alerts</dt>
                     <dd class="mt-1 text-3xl font-semibold">{{ stats.active_alerts }}</dd>
+                    <dd class="mt-3 flex flex-wrap gap-3">
+                        {% for item in stats.alert_severity_counts %}
+                            <span class="stat-severity {% if not item.count %}stat-severity--zero{% endif %}"
+                                  title="{{ item.severity }}">
+                                <span class="severity-dot severity-dot--{{ item.severity|lower }}" aria-hidden="true"></span>
+                                {{ item.count }}
+                            </span>
+                        {% endfor %}
+                    </dd>
                 </div>
                 <div class="rounded-lg border border-border bg-card p-5">
-                    <dt class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Alerting authorities
-                    </dt>
-                    <dd class="mt-1 text-3xl font-semibold">{{ stats.authorities }}</dd>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Countries with alerts</dt>
+                    <dd class="mt-1 text-3xl font-semibold">
+                        {{ stats.countries_with_alerts }}
+                        <span class="text-base font-normal text-muted-foreground">of {{ stats.countries_covered }} covered</span>
+                    </dd>
+                    <dd class="mt-3 flex flex-wrap gap-3">
+                        {% for item in stats.country_severity_counts %}
+                            <span class="stat-severity {% if not item.count %}stat-severity--zero{% endif %}"
+                                  title="Countries whose worst active alert is {{ item.severity }}">
+                                <span class="severity-dot severity-dot--{{ item.severity|lower }}" aria-hidden="true"></span>
+                                {{ item.count }}
+                            </span>
+                        {% endfor %}
+                    </dd>
                 </div>
                 <div class="rounded-lg border border-border bg-card p-5">
-                    <dt class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Countries covered</dt>
-                    <dd class="mt-1 text-3xl font-semibold">{{ stats.countries }}</dd>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-muted-foreground">System status</dt>
+                    <dd class="mt-1 flex items-center gap-2 text-2xl font-semibold">
+                        <span class="status-dot status-dot--{{ stats.status }}" aria-hidden="true"></span>
+                        {% if stats.status == "operational" %}Operational{% elif stats.status == "degraded" %}Degraded{% else %}Unknown{% endif %}
+                    </dd>
+                    <dd class="mt-3 text-sm text-muted-foreground">
+                        {% if stats.last_check %}Last check: {{ stats.last_check|timesince }} ago{% else %}No source contact recorded yet{% endif %}
+                    </dd>
                 </div>
             </dl>
         </section>
 
-        {% if latest_alerts %}
-            <section aria-label="Latest alerts">
+        {% if alert_groups %}
+            <section aria-label="Active alerts by authority">
                 <div class="mb-3 flex items-baseline justify-between">
-                    <h2 class="text-lg font-semibold">Latest alerts</h2>
+                    <h2 class="text-lg font-semibold">Active alerts</h2>
                     <a href="{% url 'explorer' %}table"
-                       class="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground">Browse
-                        all</a>
+                       class="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground">Browse the archive</a>
                 </div>
-                <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {% for alert in latest_alerts %}
-                        <li>
-                            <a href="{% url 'alert_detail' alert.chain_id %}"
-                               class="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent">
-                                <span class="severity-badge severity-badge--{{ alert.severity|lower }}">{{ alert.severity }}</span>
-                                <span class="min-w-0">
-                                    <span class="block truncate text-sm font-medium">
-                                        {{ alert.headline|default:alert.event }}</span>
-                                    <span class="block text-xs text-muted-foreground">{{ alert.authority.name }}
-                                        · {{ alert.effective }}</span>
-                                </span>
-                            </a>
-                        </li>
+                <div class="flex flex-col gap-5">
+                    {% for group in alert_groups %}
+                        <div data-alert-group>
+                            <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold">
+                                <span aria-hidden="true">{{ group.flag }}</span>
+                                {{ group.country_name }}
+                                <span class="font-normal text-muted-foreground">· {{ group.authority.name }}</span>
+                                <span class="text-xs font-normal text-muted-foreground">{{ group.alerts|length }}</span>
+                            </h3>
+                            <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                {% for alert in group.alerts %}
+                                    <li {% if forloop.counter > visible_per_authority %}class="alert-extra hidden"{% endif %}>
+                                        <a href="{% url 'alert_detail' alert.chain_id %}"
+                                           class="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent">
+                                            <span class="severity-badge severity-badge--{{ alert.severity|lower }}">{{ alert.severity }}</span>
+                                            <span class="min-w-0">
+                                                <span class="block truncate text-sm font-medium">{{ alert.headline|default:alert.event }}</span>
+                                                <span class="block text-xs text-muted-foreground">{{ alert.event }} · {{ alert.effective }}</span>
+                                            </span>
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            {% if group.extra_count %}
+                                <button type="button"
+                                        class="mt-2 text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                                        data-expand-alerts
+                                        data-more-label="View {{ group.extra_count }} more"
+                                        aria-expanded="false">
+                                    View {{ group.extra_count }} more
+                                </button>
+                            {% endif %}
+                        </div>
                     {% endfor %}
-                </ul>
+                </div>
             </section>
         {% endif %}
     </div>

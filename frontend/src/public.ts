@@ -20,4 +20,17 @@ document.addEventListener("DOMContentLoaded", () => {
       syncLabels();
     });
   });
+
+  // Homepage alert groups: all alerts are in the HTML; "View N more" toggles
+  // the ones beyond the first two per authority.
+  document.querySelectorAll<HTMLButtonElement>("[data-expand-alerts]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const group = button.closest("[data-alert-group]");
+      if (!group) return;
+      const expand = button.getAttribute("aria-expanded") !== "true";
+      group.querySelectorAll(".alert-extra").forEach((item) => item.classList.toggle("hidden", !expand));
+      button.setAttribute("aria-expanded", String(expand));
+      button.textContent = expand ? "Show less" : (button.dataset.moreLabel ?? "View more");
+    });
+  });
 });
