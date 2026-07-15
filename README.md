@@ -26,7 +26,7 @@ make dev-build
 make dev-up                  # foreground; use dev-up-d for detached
 # Optional: to join a shared docker network with companion stacks, copy
 # docker-compose.override.yml.sample to docker-compose.override.yml (and
-# create the network once: docker network create climtech)
+# create the network once: docker network create capagg)
 make dev-createsuperuser
 ```
 

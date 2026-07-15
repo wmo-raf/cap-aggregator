@@ -3,8 +3,8 @@
 #
 # This sample joins the stack to a shared external network so companion stacks
 # on the same host can reach these containers by name.
-# Create the network once:  docker network create climtech
+# Create the network once:  docker network create capagg
 networks:
   default:
     external: true
-    name: ${NETWORK_NAME:-climtech}
+    name: ${NETWORK_NAME:-capagg}
