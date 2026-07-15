@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronLeft, ChevronRight, Table2 } from "lucide-vue-next";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -84,17 +84,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="flex h-full flex-col gap-4 overflow-auto p-4 md:p-6">
-    <header class="flex flex-col gap-1">
-      <h1 class="flex items-center gap-2 text-xl font-semibold">
-        <Table2 class="size-5 text-muted-foreground" aria-hidden="true" />
-        Alert archive
-      </h1>
-      <p class="text-sm text-muted-foreground">Alerts issued within the selected date range.</p>
-    </header>
-
-    <div class="flex flex-col gap-4 lg:flex-row">
-      <ExplorerSidebar label="Table filters">
+  <section class="relative flex h-full w-full">
+    <ExplorerSidebar title="Alert archive" description="Alerts issued within the selected date range.">
         <section class="sidebar-panel" aria-label="Date range">
           <header class="sidebar-panel__header">
             <h3>Date range</h3>
@@ -126,7 +117,7 @@ onMounted(async () => {
         <FilterPanel v-model="filters" :countries="countries" />
       </ExplorerSidebar>
 
-      <div class="min-w-0 flex-1">
+      <div class="min-w-0 flex-1 overflow-auto p-4 md:p-6">
         <p v-if="state === 'loading'" class="text-sm text-muted-foreground">Loading alerts…</p>
         <p v-else-if="state === 'error'" class="text-sm text-destructive" role="alert">
           Could not load alerts. Please try again later.
@@ -223,6 +214,5 @@ onMounted(async () => {
           </div>
         </div>
       </div>
-    </div>
   </section>
 </template>

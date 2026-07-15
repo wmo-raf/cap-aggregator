@@ -1,34 +1,43 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import ExplorerSidebar from "@/components/ExplorerSidebar.vue";
+import { useSidebar } from "@/composables/useSidebar";
 
-function mountSidebar(variant: "overlay" | "inline") {
+function mountSidebar() {
   return mount(ExplorerSidebar, {
-    props: { variant, label: "Test sidebar" },
+    props: { title: "Alert archive", description: "Alerts issued within the selected date range." },
     slots: { default: "<p data-testid='content'>sidebar content</p>" },
     global: { stubs: { transition: true } },
   });
 }
 
-describe.each(["overlay", "inline"] as const)("ExplorerSidebar (%s)", (variant) => {
-  it("starts open with the slot content visible", () => {
-    const wrapper = mountSidebar(variant);
+describe("ExplorerSidebar", () => {
+  beforeEach(() => useSidebar().openSidebar());
 
+  it("renders the header (title, description) above the slot content", () => {
+    const wrapper = mountSidebar();
+
+    expect(wrapper.find("h2").text()).toBe("Alert archive");
+    expect(wrapper.text()).toContain("Alerts issued within the selected date range.");
     expect(wrapper.find("[data-testid='content']").exists()).toBe(true);
-    expect(wrapper.find("[data-testid='sidebar-toggle']").attributes("aria-expanded")).toBe("true");
-    expect(wrapper.find("aside").attributes("aria-label")).toBe("Test sidebar");
+    expect(wrapper.find("aside").attributes("aria-label")).toBe("Alert archive");
   });
 
-  it("collapses and reopens via the toggle", async () => {
-    const wrapper = mountSidebar(variant);
-    const toggle = wrapper.find("[data-testid='sidebar-toggle']");
+  it("closes via the header close button (shared state)", async () => {
+    const wrapper = mountSidebar();
 
-    await toggle.trigger("click");
-    expect(wrapper.find("[data-testid='content']").exists()).toBe(false);
-    expect(toggle.attributes("aria-expanded")).toBe("false");
+    await wrapper.find("[data-testid='sidebar-close']").trigger("click");
 
-    await toggle.trigger("click");
-    expect(wrapper.find("[data-testid='content']").exists()).toBe(true);
+    expect(wrapper.find("aside").exists()).toBe(false);
+    expect(useSidebar().open.value).toBe(false);
+  });
+
+  it("has no floating toggle of its own — reopening is the menu's job", () => {
+    useSidebar().close();
+    const wrapper = mountSidebar();
+
+    expect(wrapper.find("aside").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='sidebar-toggle']").exists()).toBe(false);
   });
 });

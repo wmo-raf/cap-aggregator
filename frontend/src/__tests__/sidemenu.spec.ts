@@ -32,4 +32,26 @@ describe("SideMenu", () => {
     const wrapper = await mountMenu();
     expect(wrapper.find('[data-testid="theme-toggle"]').exists()).toBe(true);
   });
+
+  it("toggles the sidebar when the active view's item is clicked", async () => {
+    const { useSidebar } = await import("@/composables/useSidebar");
+    useSidebar().openSidebar();
+    const wrapper = await mountMenu(); // mounted at /map
+
+    await wrapper.find('a[href="/explorer/map"]').trigger("click");
+    expect(useSidebar().open.value).toBe(false);
+
+    await wrapper.find('a[href="/explorer/map"]').trigger("click");
+    expect(useSidebar().open.value).toBe(true);
+  });
+
+  it("leaves the sidebar state alone when navigating to another view", async () => {
+    const { useSidebar } = await import("@/composables/useSidebar");
+    useSidebar().close();
+    const wrapper = await mountMenu();
+
+    await wrapper.find('a[href="/explorer/notify"]').trigger("click");
+
+    expect(useSidebar().open.value).toBe(false);
+  });
 });

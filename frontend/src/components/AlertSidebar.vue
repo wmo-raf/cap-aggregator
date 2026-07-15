@@ -23,7 +23,7 @@ function expiryLabel(expires: string | null): string {
 </script>
 
 <template>
-  <ExplorerSidebar variant="overlay" label="Alerts in view">
+  <ExplorerSidebar title="Map" description="Filter and browse alerts in the current view.">
     <FilterPanel
       class="shrink-0"
       :model-value="filters"
