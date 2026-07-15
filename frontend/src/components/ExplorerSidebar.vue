@@ -35,7 +35,7 @@ const close = () => sidebar.close(view.value);
       :aria-label="title"
       class="absolute inset-y-0 left-0 z-30 flex h-full w-80 max-w-full shrink-0 flex-col border-r border-border bg-card md:static"
     >
-      <header class="flex shrink-0 items-start justify-between gap-2 border-b border-border px-3 py-2.5">
+      <header class="flex shrink-0 items-start justify-between gap-2 border-b border-border bg-muted px-3 py-2.5">
         <div class="min-w-0">
           <h2 class="text-sm font-semibold">{{ title }}</h2>
           <p v-if="description" class="text-xs text-muted-foreground">{{ description }}</p>
