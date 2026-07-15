@@ -1,0 +1,39 @@
+import { describe, expect, it } from "vitest";
+
+import { defaultRange, rangeFromQuery, rangeToQuery, tableSearchParams } from "@/lib/dateRange";
+import { emptyFilters } from "@/lib/filters";
+
+describe("table date range", () => {
+  const now = new Date("2026-07-15T10:00:00Z");
+
+  it("defaults to the last 7 days inclusive of today", () => {
+    expect(defaultRange(now)).toEqual({ from: "2026-07-08", to: "2026-07-15" });
+  });
+
+  it("round-trips through the URL query", () => {
+    const range = { from: "2026-06-01", to: "2026-06-30" };
+
+    const query = rangeToQuery(range);
+    expect(query).toEqual({ from: "2026-06-01", to: "2026-06-30" });
+    expect(rangeFromQuery(query, now)).toEqual(range);
+  });
+
+  it("falls back to the default range for missing or malformed params", () => {
+    expect(rangeFromQuery({}, now)).toEqual(defaultRange(now));
+    expect(rangeFromQuery({ from: "garbage", to: "2026-06-30" }, now)).toEqual(defaultRange(now));
+  });
+
+  it("builds table search params: range + facets + pagination", () => {
+    const params = tableSearchParams(
+      { ...emptyFilters(), severity: ["Severe"] },
+      { from: "2026-06-01", to: "2026-06-30" },
+      50,
+    );
+
+    expect(params.get("effective_from")).toBe("2026-06-01");
+    expect(params.get("effective_to")).toBe("2026-06-30");
+    expect(params.get("severity")).toBe("Severe");
+    expect(params.get("limit")).toBe("50");
+    expect(params.get("offset")).toBe("50");
+  });
+});
