@@ -8,6 +8,13 @@ const DEFAULTS: AppConfig = {
   tilesBase: "/martin",
 };
 
+/** MapLibre fetches tiles in a worker spawned from a blob: URL, which has no
+ * base to resolve relative URLs against ("Failed to parse URL from /martin/…")
+ * — so a site-relative base must become absolute here in the page context. */
+function absolute(base: string): string {
+  return base.startsWith("/") ? `${window.location.origin}${base}` : base;
+}
+
 /**
  * Runtime config injected by the Django shell as a JSON <script id="capagg-config">
  * (Django's json_script). Falls back to production defaults so the SPA still
@@ -15,14 +22,16 @@ const DEFAULTS: AppConfig = {
  */
 export function appConfig(): AppConfig {
   const element = document.getElementById("capagg-config");
-  if (!element?.textContent) return { ...DEFAULTS };
-  try {
-    const parsed = JSON.parse(element.textContent) as Partial<AppConfig>;
-    const tilesBase = (parsed.tilesBase ?? DEFAULTS.tilesBase).replace(/\/+$/, "");
-    return { tilesBase };
-  } catch {
-    return { ...DEFAULTS };
+  let tilesBase = DEFAULTS.tilesBase;
+  if (element?.textContent) {
+    try {
+      const parsed = JSON.parse(element.textContent) as Partial<AppConfig>;
+      tilesBase = parsed.tilesBase ?? DEFAULTS.tilesBase;
+    } catch {
+      // fall through to the default
+    }
   }
+  return { tilesBase: absolute(tilesBase.replace(/\/+$/, "")) };
 }
 
 /** MapLibre raster/vector tile URL template for the Martin `alerts` function source. */

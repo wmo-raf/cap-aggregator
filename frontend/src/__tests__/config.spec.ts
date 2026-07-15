@@ -18,18 +18,18 @@ describe("app config", () => {
     expect(alertTileUrlTemplate()).toBe("http://localhost:3000/martin/alerts/{z}/{x}/{y}");
   });
 
-  it("falls back to the nginx-proxied /martin base when no config is injected", () => {
-    expect(appConfig().tilesBase).toBe("/martin");
-    expect(alertTileUrlTemplate()).toBe("/martin/alerts/{z}/{x}/{y}");
+  it("resolves the fallback /martin base to an absolute URL (maplibre tile workers cannot parse relative URLs)", () => {
+    expect(appConfig().tilesBase).toBe(`${window.location.origin}/martin`);
+    expect(alertTileUrlTemplate()).toBe(`${window.location.origin}/martin/alerts/{z}/{x}/{y}`);
   });
 
-  it("ignores a trailing slash on the configured base", () => {
+  it("resolves a relative configured base against the page origin, ignoring trailing slashes", () => {
     const script = document.createElement("script");
     script.id = "capagg-config";
     script.type = "application/json";
     script.textContent = JSON.stringify({ tilesBase: "/martin/" });
     document.body.appendChild(script);
 
-    expect(alertTileUrlTemplate()).toBe("/martin/alerts/{z}/{x}/{y}");
+    expect(alertTileUrlTemplate()).toBe(`${window.location.origin}/martin/alerts/{z}/{x}/{y}`);
   });
 });
