@@ -22,6 +22,18 @@ def install_home_page(**kwargs):
     return home
 
 
+class FreshSetupTests(TestCase):
+    """A brand-new database must serve the landing page at / out of the box —
+    the 0002_create_homepage data migration replaces Wagtail's placeholder."""
+
+    def test_root_serves_the_homepage_without_manual_setup(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "capagg-hero")
+        self.assertNotContains(response, "Welcome to your new Wagtail site!")
+
+
 class HomePageTests(TestCase):
     def setUp(self):
         cache.clear()
