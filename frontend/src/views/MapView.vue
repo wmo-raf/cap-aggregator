@@ -20,6 +20,7 @@ import {
   filtersToRouteQuery,
   tileQueryFromFilters,
 } from "@/lib/filters";
+import { buildPopupContent, dedupeAlertFeatures } from "@/lib/popup";
 import { roundToBucket, timeFromQuery, timeToQuery } from "@/lib/timeControl";
 
 const container = ref<HTMLDivElement | null>(null);
@@ -120,6 +121,29 @@ onMounted(async () => {
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
   map.on("style.load", () => addAlertLayers(map!));
   map.on("moveend", () => refreshList());
+
+  // Click popups: every overlapping alert at the point, worst first.
+  // Popups close on the next map click (maplibre closeOnClick default).
+  const clickableLayers = ["capagg-alerts-fill", "capagg-alerts-centroids"];
+  map.on("click", (e) => {
+    const layers = clickableLayers.filter((id) => map!.getLayer(id));
+    if (!layers.length) return;
+    const alerts = dedupeAlertFeatures(map!.queryRenderedFeatures(e.point, { layers }));
+    if (!alerts.length) return;
+    new maplibregl.Popup({ maxWidth: "320px" })
+      .setLngLat(e.lngLat)
+      .setDOMContent(buildPopupContent(alerts))
+      .addTo(map!);
+  });
+  for (const layerId of clickableLayers) {
+    map.on("mouseenter", layerId, () => {
+      map!.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", layerId, () => {
+      map!.getCanvas().style.cursor = "";
+    });
+  }
+
   refreshList(true);
 
   try {

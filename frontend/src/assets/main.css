@@ -153,4 +153,37 @@
   .alert-area-map {
     @apply h-72 w-full rounded-lg border border-border;
   }
+
+  /* Map click popups — maplibre defaults are white; restyle with tokens */
+  .maplibregl-popup-content {
+    @apply rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-md;
+  }
+  .maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+  .maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+  .maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+    border-top-color: var(--color-popover);
+  }
+  .maplibregl-popup-anchor-top .maplibregl-popup-tip,
+  .maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+  .maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+    border-bottom-color: var(--color-popover);
+  }
+  .maplibregl-popup-close-button {
+    @apply px-1.5 text-muted-foreground;
+  }
+  .capagg-popup {
+    @apply flex max-h-64 w-64 flex-col gap-0.5 overflow-y-auto;
+  }
+  .capagg-popup__item {
+    @apply flex flex-col gap-0.5 rounded-md p-2 transition-colors hover:bg-accent;
+  }
+  .capagg-popup__title {
+    @apply flex items-center gap-2 text-sm font-medium text-foreground;
+  }
+  .capagg-popup__dot {
+    @apply inline-block size-2.5 shrink-0 rounded-full;
+  }
+  .capagg-popup__meta {
+    @apply pl-4.5 text-xs text-muted-foreground;
+  }
 }

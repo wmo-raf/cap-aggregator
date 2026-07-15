@@ -59,6 +59,7 @@ BEGIN
     WITH candidates AS (
         SELECT
             r.id,
+            r.chain_id AS chain,
             r.event,
             r.headline,
             r.msg_type,
@@ -99,7 +100,7 @@ BEGIN
         SELECT ST_AsMVT(q.*, 'alerts', 4096, 'mvt_geom') AS mvt
         FROM (
             SELECT
-                id, event, headline, msg_type, status, severity, urgency,
+                id, chain, event, headline, msg_type, status, severity, urgency,
                 certainty, authority,
                 array_to_string(countries, ',')  AS countries,
                 array_to_string(categories, ',') AS categories,
@@ -113,7 +114,7 @@ BEGIN
         SELECT ST_AsMVT(q.*, 'alert_centroids', 4096, 'mvt_geom') AS mvt
         FROM (
             SELECT
-                id, event, severity, urgency, certainty,
+                id, chain, event, severity, urgency, certainty,
                 ST_AsMVTGeom(ST_Transform(centroid, 3857), tile_env, 4096, 64, true) AS mvt_geom
             FROM candidates
             WHERE centroid IS NOT NULL
