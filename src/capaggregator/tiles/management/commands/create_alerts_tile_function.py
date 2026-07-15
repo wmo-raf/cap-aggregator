@@ -3,7 +3,7 @@
 Creates/replaces the PostgreSQL function source used by Martin to serve
 resolved alerts as vector tiles. Martin calls it via:
 
-    GET /martin/alerts/{z}/{x}/{y}
+    GET /tiles/alerts/{z}/{x}/{y}
         ?t=2026-07-06T12:00:00Z            (point in time; default now())
         &severity=Severe,Extreme           (CSV filters, all optional)
         &urgency=Immediate
@@ -149,4 +149,4 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS("Dropped capagg_alerts_tile"))
                 return
             cursor.execute(_CREATE_FUNCTION_SQL)
-        self.stdout.write(self.style.SUCCESS("Created capagg_alerts_tile — served by Martin at /martin/alerts/{z}/{x}/{y}"))
+        self.stdout.write(self.style.SUCCESS("Created capagg_alerts_tile — served by Martin at /tiles/alerts/{z}/{x}/{y}"))

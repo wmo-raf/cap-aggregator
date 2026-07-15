@@ -166,8 +166,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Base URL the *browser* uses for Martin vector tiles. Default matches the
 # nginx proxy location in the compose stack; dev overrides to the exposed
-# Martin port since runserver doesn't proxy /martin/.
-CAPAGG_TILES_BASE = env("CAPAGG_TILES_BASE", default="/martin")
+# Martin port since runserver doesn't proxy /tiles/.
+CAPAGG_TILES_BASE = env("CAPAGG_TILES_BASE", default="/tiles")
 
 # --- django-vite (explorer SPA bundle) ---
 # dev_mode=True serves modules from the Vite dev server (capagg-vite service,

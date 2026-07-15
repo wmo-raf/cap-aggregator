@@ -4,12 +4,12 @@ export interface AppConfig {
 }
 
 const DEFAULTS: AppConfig = {
-  // nginx proxies /martin/ to the Martin container in the compose stack
-  tilesBase: "/martin",
+  // nginx proxies /tiles/ to the Martin container in the compose stack
+  tilesBase: "/tiles",
 };
 
 /** MapLibre fetches tiles in a worker spawned from a blob: URL, which has no
- * base to resolve relative URLs against ("Failed to parse URL from /martin/…")
+ * base to resolve relative URLs against ("Failed to parse URL from /tiles/…")
  * — so a site-relative base must become absolute here in the page context. */
 function absolute(base: string): string {
   return base.startsWith("/") ? `${window.location.origin}${base}` : base;

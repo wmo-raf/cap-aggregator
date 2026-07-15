@@ -247,7 +247,7 @@ added later behind a storage-manager abstraction if archive volume demands it.
 One function serves everything:
 
 ```
-GET /martin/alerts/{z}/{x}/{y}
+GET /tiles/alerts/{z}/{x}/{y}
     ?t=2026-07-06T12:00:00Z        -- point in time (default: now, rounded to 5-min bucket)
     &severity=Severe,Extreme       -- optional CSV filters on resolved state
     &urgency=&certainty=&category=&msg_type=&status=&country=&event=
