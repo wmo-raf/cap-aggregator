@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load django_vite %}
+
+{% block title %}{{ resolved.headline|default:resolved.event }} — CAP Aggregator{% endblock %}
+
+{% block extra_js %}
+    {% if area_geojson %}{% vite_asset 'src/alert-detail.ts' %}{% endif %}
+{% endblock %}
+
+{% block content %}
+<article class="flex flex-col gap-6">
+    {% if chain.is_cancelled %}
+        <div class="alert-status-banner alert-status-banner--cancelled" role="status">
+            This alert has been <strong>cancelled</strong> by the issuing authority and is no longer in effect.
+        </div>
+    {% elif is_expired %}
+        <div class="alert-status-banner alert-status-banner--expired" role="status">
+            This alert has <strong>expired</strong> ({{ resolved.expires }}) and is no longer in effect.
+        </div>
+    {% endif %}
+
+    <header class="flex flex-col gap-2">
+        <p class="text-sm text-muted-foreground">
+            <span class="severity-badge severity-badge--{{ resolved.severity|lower }}">{{ resolved.severity }}</span>
+            {{ resolved.event }}
+        </p>
+        <h1 class="text-2xl font-semibold">{{ resolved.headline|default:resolved.event }}</h1>
+        <p class="text-sm text-muted-foreground">
+            Issued by <strong>{{ chain.authority.name }}</strong>
+            &middot; sent {{ alert.sent }}
+            &middot; <a href="{% url 'alert_xml' chain.pk %}" class="underline underline-offset-2 transition-colors hover:text-foreground">Raw CAP XML</a>
+        </p>
+    </header>
+
+    <dl class="alert-facts">
+        <div><dt>Urgency</dt><dd>{{ resolved.urgency }}</dd></div>
+        <div><dt>Severity</dt><dd>{{ resolved.severity }}</dd></div>
+        <div><dt>Certainty</dt><dd>{{ resolved.certainty }}</dd></div>
+        <div><dt>Effective</dt><dd>{{ resolved.effective|default:"—" }}</dd></div>
+        <div><dt>Expires</dt><dd>{{ resolved.expires|default:"—" }}</dd></div>
+        <div><dt>Status</dt><dd>{{ resolved.status }}</dd></div>
+    </dl>
+
+    {% if area_geojson %}
+        {{ area_geojson|json_script:"capagg-area-geojson" }}
+        <section aria-label="Alert area">
+            <h2 class="mb-2 text-sm font-semibold text-muted-foreground">Alert area</h2>
+            <div id="capagg-area-map" class="alert-area-map" data-severity="{{ resolved.severity|lower }}"></div>
+        </section>
+    {% endif %}
+
+    {% for info in infos %}
+        <section lang="{{ info.language }}" class="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+            <div class="flex items-center justify-between gap-2">
+                <h2 class="text-lg font-semibold">{{ info.headline|default:info.event }}</h2>
+                {% if infos|length > 1 %}
+                    <span class="rounded-full border border-border bg-secondary px-2 py-0.5 text-xs font-medium uppercase text-secondary-foreground">{{ info.language }}</span>
+                {% endif %}
+            </div>
+            {% if info.description %}
+                <div>
+                    <h3 class="text-sm font-semibold text-muted-foreground">Description</h3>
+                    <p class="whitespace-pre-line text-sm">{{ info.description }}</p>
+                </div>
+            {% endif %}
+            {% if info.instruction %}
+                <div>
+                    <h3 class="text-sm font-semibold text-muted-foreground">Instruction</h3>
+                    <p class="whitespace-pre-line text-sm">{{ info.instruction }}</p>
+                </div>
+            {% endif %}
+        </section>
+    {% endfor %}
+</article>
+{% endblock %}
