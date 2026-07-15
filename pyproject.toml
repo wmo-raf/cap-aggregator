@@ -2,6 +2,7 @@
 name = "cap-aggregator"
 description = "CAP v1.2 alert aggregator — ingests alerts from cap-composer instances over MQTT, serves vector tiles, search APIs and re-publication feeds"
 requires-python = ">=3.12"
+dynamic = ["version"]
 dependencies = [
     "django>=5.0,<6.0",
     "wagtail>=7.0,<8.0",
@@ -25,6 +26,7 @@ dependencies = [
     "pyproj>=3.6",
     "feedparser>=6.0",
     "django-countries>=7.6",
+    "django-vite>=3.0",
     "requests>=2.31",
     "cryptography>=42.0",
     "gunicorn>=22.0",
@@ -53,6 +55,8 @@ line-length = 120
 target-version = "py312"
 
 
-[tool.setuptools.dynamic]
-# version always from the code
-version = { attr = "capaggregator.version.__version__" }
+# version always from the code (hatchling evaluates __version__ in version.py)
+[tool.hatch.version]
+source = "code"
+path = "src/capaggregator/version.py"
+expression = "__version__"

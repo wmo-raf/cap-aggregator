@@ -1,3 +1,16 @@
+# --- Frontend build stage: Vite bundles the explorer SPA into
+# --- src/capaggregator/static/frontend/ (vite.config.ts outDir), from where
+# --- collectstatic picks it up at container start.
+FROM node:22-slim AS frontend-build
+
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# outDir is ../src/... relative to /frontend → /src/capaggregator/static/frontend
+RUN npm run build
+
+
 FROM python:3.12-slim-bookworm
 
 # DEV=true (set by docker-compose.dev.yml build args) additionally installs
@@ -31,6 +44,7 @@ WORKDIR /app
 
 COPY pyproject.toml ./
 COPY src ./src
+COPY --from=frontend-build /src/capaggregator/static/frontend ./src/capaggregator/static/frontend
 RUN uv pip install --system -e . \
     && if [ "$DEV" = "true" ]; then \
          uv pip install --system watchdog django-debug-toolbar pytest pytest-django ruff; \

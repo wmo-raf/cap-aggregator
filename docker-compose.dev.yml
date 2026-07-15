@@ -41,3 +41,20 @@ services:
   capagg-martin:
     ports:
       - "${MARTIN_PORT:-3000}:3000"
+
+  # Vite dev server (HMR) for the explorer SPA. Templates reference it via
+  # django-vite dev_mode (dev settings default True); the browser reaches it
+  # at localhost:5173, so the port mapping must match DJANGO_VITE settings.
+  capagg-vite:
+    image: node:22-alpine
+    working_dir: /frontend
+    command: sh -c "npm install && npm run dev"
+    volumes:
+      - ./frontend:/frontend
+      - capagg-vite-node-modules:/frontend/node_modules
+    ports:
+      - "${VITE_PORT:-5173}:5173"
+    restart: unless-stopped
+
+volumes:
+  capagg-vite-node-modules:
