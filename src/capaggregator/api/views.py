@@ -3,7 +3,7 @@
 import json
 from datetime import timedelta
 
-from django.db.models import Count, Q
+from django.db.models import Case, Count, IntegerField, Q, When
 from django.http import JsonResponse, StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
@@ -59,6 +59,7 @@ def _parse_bound(value, *, end=False):
         OpenApiParameter("effective_from", str, description="Range mode: alerts effective on/after this ISO datetime or date."),
         OpenApiParameter("effective_to", str, description="Range mode: alerts effective up to this ISO datetime (or through this date). Range mode includes expired alerts."),
         OpenApiParameter("t", str, description="Point-in-time: alerts active at this instant (default: now when active=true)."),
+        OpenApiParameter("order", str, description="'severity' ranks worst-first (Extreme→Unknown, newest within); default is newest-first."),
     ]
 )
 class AlertSearchView(ListAPIView):
@@ -113,6 +114,17 @@ class AlertSearchView(ListAPIView):
             qs = qs.filter(geom__intersects=Polygon.from_bbox([float(v) for v in bbox.split(",")]))
 
         # TODO: full-text q over AlertInfo.search_vector; language filter; resolved=false raw mode
+        if params.get("order") == "severity":
+            # keeps severity-grouped, paginated lists globally contiguous
+            rank = Case(
+                When(severity="Extreme", then=0),
+                When(severity="Severe", then=1),
+                When(severity="Moderate", then=2),
+                When(severity="Minor", then=3),
+                default=4,
+                output_field=IntegerField(),
+            )
+            return qs.annotate(_severity_rank=rank).order_by("_severity_rank", "-effective")
         return qs.order_by("-effective")
 
 

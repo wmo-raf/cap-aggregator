@@ -80,3 +80,45 @@ class EffectiveRangeTests(TestCase):
         content = response.content.decode()
         self.assertIn("effective_from", content)
         self.assertIn("effective_to", content)
+
+
+class SeverityOrderingTests(TestCase):
+    """order=severity ranks worst-first (Extreme→...→Unknown) so severity-grouped
+    lists stay contiguous across pagination; -effective breaks ties."""
+
+    def setUp(self):
+        self.authority = create_source_authority()
+        base = timezone.now() - timedelta(hours=1)
+
+        def chain(severity, hours_ago, headline):
+            eff = base - timedelta(hours=hours_ago)
+            return create_event_chain(
+                self.authority,
+                sent=eff,
+                infos=[{
+                    "severity": severity, "headline": headline,
+                    "effective": eff, "expires": eff + timedelta(days=2),
+                }],
+            )
+
+        chain("Minor", 0, "Minor newest")
+        chain("Extreme", 5, "Extreme old")
+        chain("Severe", 3, "Severe newer")
+        chain("Severe", 4, "Severe older")
+
+    def headlines(self, **params):
+        response = self.client.get(reverse("alert_search"), params)
+        self.assertEqual(response.status_code, 200)
+        return [f["properties"]["headline"] for f in response.json()["results"]["features"]]
+
+    def test_order_severity_ranks_worst_first_then_newest(self):
+        self.assertEqual(
+            self.headlines(order="severity"),
+            ["Extreme old", "Severe newer", "Severe older", "Minor newest"],
+        )
+
+    def test_default_ordering_stays_newest_first(self):
+        self.assertEqual(
+            self.headlines(),
+            ["Minor newest", "Severe newer", "Severe older", "Extreme old"],
+        )

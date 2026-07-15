@@ -35,5 +35,7 @@ describe("table date range", () => {
     expect(params.get("severity")).toBe("Severe");
     expect(params.get("limit")).toBe("50");
     expect(params.get("offset")).toBe("50");
+    // severity-grouped rows must be globally contiguous across pages
+    expect(params.get("order")).toBe("severity");
   });
 });

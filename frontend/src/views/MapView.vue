@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RotateCcw } from "lucide-vue-next";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
@@ -15,6 +16,7 @@ import { type BasemapId, basemapStyleUrl, resolveBasemapId } from "@/lib/basemap
 import { alertTileUrlTemplate } from "@/lib/config";
 import {
   type AlertFilters,
+  emptyFilters,
   FACET_PARAMS,
   filtersFromRouteQuery,
   filtersToRouteQuery,
@@ -22,6 +24,9 @@ import {
 } from "@/lib/filters";
 import { buildPopupContent, dedupeAlertFeatures } from "@/lib/popup";
 import { roundToBucket, timeFromQuery, timeToQuery } from "@/lib/timeControl";
+
+const INITIAL_CENTER: [number, number] = [15, 10];
+const INITIAL_ZOOM = 2;
 
 const container = ref<HTMLDivElement | null>(null);
 let map: maplibregl.Map | null = null;
@@ -65,6 +70,25 @@ const alerts = ref<AlertListItem[]>([]);
 const total = ref(0);
 const listState = ref<"loading" | "ready" | "error">("loading");
 const countries = ref<{ code: string; name: string }[]>([]);
+
+// Global active-alert count for the fixed card — ignores filters/viewport/time
+const globalCount = ref<number | null>(null);
+
+async function refreshGlobalCount() {
+  try {
+    globalCount.value = (await fetchAlertList(emptyFilters(), null)).total;
+  } catch {
+    globalCount.value = null;
+  }
+}
+
+/** One-click "show me everything, fresh": clear facets, back to live, home view. */
+function resetAll() {
+  filters.value = emptyFilters();
+  selectedTime.value = null;
+  map?.flyTo({ center: INITIAL_CENTER, zoom: INITIAL_ZOOM });
+  refreshGlobalCount();
+}
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -115,8 +139,8 @@ onMounted(async () => {
   map = new maplibregl.Map({
     container: container.value,
     style: basemapStyleUrl(activeBasemap.value),
-    center: [15, 10],
-    zoom: 2,
+    center: INITIAL_CENTER,
+    zoom: INITIAL_ZOOM,
   });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
   map.on("style.load", () => addAlertLayers(map!));
@@ -145,6 +169,7 @@ onMounted(async () => {
   }
 
   refreshList(true);
+  refreshGlobalCount();
 
   try {
     const seen = new Set<string>();
@@ -178,6 +203,22 @@ onUnmounted(() => {
           :countries="countries"
           @update:filters="filters = $event"
         />
+      </div>
+      <div class="pointer-events-auto absolute top-24 right-3 flex flex-col items-stretch gap-1.5 rounded-lg border border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
+        <p class="text-center">
+          <span class="block text-xl leading-tight font-semibold" data-testid="global-count">{{ globalCount ?? "—" }}</span>
+          <span class="block text-[10px] tracking-wide text-muted-foreground uppercase">active alerts</span>
+        </p>
+        <button
+          type="button"
+          class="flex items-center justify-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          title="Clear filters, return to live, reset the view"
+          data-testid="map-reset"
+          @click="resetAll"
+        >
+          <RotateCcw class="size-3.5" aria-hidden="true" />
+          Reset
+        </button>
       </div>
       <div class="absolute right-3 bottom-6 flex flex-col items-end gap-2">
         <SeverityLegend />
