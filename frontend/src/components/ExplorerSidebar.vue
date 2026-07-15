@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import { X } from "lucide-vue-next";
+import { computed } from "vue";
+import { useRoute } from "vue-router";
 
 import { useSidebar } from "@/composables/useSidebar";
 
 /**
  * The docked explorer sidebar: one full-height column anchored to the main
- * menu rail, identical on every view. Open state is shared (useSidebar) and
- * driven by the main menu; the header's close button is the only affordance
- * inside. On small screens it overlays the content instead of docking.
+ * menu rail, identical on every view. Open state is per-view (useSidebar,
+ * keyed by route name) and driven by the main menu; the header's close
+ * button is the only affordance inside. On small screens it overlays the
+ * content instead of docking.
  */
 defineProps<{ title: string; description?: string }>();
 
-const { open, close } = useSidebar();
+const route = useRoute();
+const sidebar = useSidebar();
+const view = computed(() => String(route.name ?? ""));
+const open = computed(() => sidebar.isOpen(view.value).value);
+const close = () => sidebar.close(view.value);
 </script>
 
 <template>

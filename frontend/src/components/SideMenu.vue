@@ -16,12 +16,16 @@ const items = [
   { name: "notify", label: "Notify", icon: Bell, hasSidebar: false },
 ];
 
-/** Clicking the item of the view you're on toggles its sidebar instead of
- * (re)navigating; other items navigate with the shared state carried over. */
+/** Per-view sidebar semantics: clicking the active view's item toggles its
+ * sidebar; clicking another view's item navigates AND opens that view's
+ * sidebar ("first click always opens"). Other views' states are untouched. */
 function onItemClick(item: (typeof items)[number], event: MouseEvent) {
-  if (route.name === item.name && item.hasSidebar) {
+  if (!item.hasSidebar) return;
+  if (route.name === item.name) {
     event.preventDefault();
-    sidebar.toggle();
+    sidebar.toggle(item.name);
+  } else {
+    sidebar.open(item.name);
   }
 }
 

@@ -1,29 +1,39 @@
-import { readonly, ref } from "vue";
+import { type Ref, readonly, ref } from "vue";
 
 /**
- * Shared open state for the docked explorer sidebar (one state for all
- * views — session-only). Toggled by clicking the active main-menu item;
- * closed by the sidebar's own close button. Defaults open on desktop,
- * closed on small screens.
+ * Per-view open state for the docked explorer sidebar (session-only).
+ * Menu semantics: clicking a view's menu item while elsewhere navigates AND
+ * opens that view's sidebar ("first click always opens"); clicking the
+ * active view's item toggles it. Closing on one view never affects another.
+ * First visit defaults: open on desktop, closed on small screens.
  */
 function defaultOpen(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
   return window.matchMedia("(min-width: 768px)").matches;
 }
 
-const open = ref(defaultOpen());
+const states = new Map<string, Ref<boolean>>();
+
+function stateFor(view: string): Ref<boolean> {
+  let state = states.get(view);
+  if (!state) {
+    state = ref(defaultOpen());
+    states.set(view, state);
+  }
+  return state;
+}
 
 export function useSidebar() {
   return {
-    open: readonly(open),
-    toggle: () => {
-      open.value = !open.value;
+    isOpen: (view: string) => readonly(stateFor(view)),
+    toggle: (view: string) => {
+      stateFor(view).value = !stateFor(view).value;
     },
-    openSidebar: () => {
-      open.value = true;
+    open: (view: string) => {
+      stateFor(view).value = true;
     },
-    close: () => {
-      open.value = false;
+    close: (view: string) => {
+      stateFor(view).value = false;
     },
   };
 }
