@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.views.generic import TemplateView
 
 
@@ -11,6 +12,12 @@ class ExplorerView(TemplateView):
     """
 
     template_name = "capagg_home/explorer.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Rendered as a json_script the SPA reads at boot (frontend/src/lib/config.ts)
+        context["capagg_config"] = {"tilesBase": settings.CAPAGG_TILES_BASE}
+        return context
 
 
 explorer = ExplorerView.as_view()

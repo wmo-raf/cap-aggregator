@@ -19,6 +19,7 @@
     {% vite_asset 'src/main.ts' %}
 </head>
 <body>
+{{ capagg_config|json_script:"capagg-config" }}
 <div id="capagg-explorer"></div>
 <noscript>
     <p>The CAP Aggregator explorer requires JavaScript. See the <a href="/">homepage</a> for more about the service.</p>

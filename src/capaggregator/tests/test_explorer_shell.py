@@ -44,3 +44,17 @@ class ExplorerShellTests(TestCase):
         from django.conf import settings
 
         return settings.DJANGO_VITE["default"]["dev_mode"]
+
+    def test_shell_injects_runtime_config_with_tiles_base(self):
+        """The SPA reads the Martin base URL from a json_script config block."""
+        import json
+
+        from django.conf import settings
+
+        response = self.client.get("/explorer/")
+
+        self.assertContains(response, 'id="capagg-config"')
+        content = response.content.decode()
+        start = content.index('id="capagg-config"')
+        payload = content[content.index(">", start) + 1 : content.index("</script>", start)]
+        self.assertEqual(json.loads(payload)["tilesBase"], settings.CAPAGG_TILES_BASE)
