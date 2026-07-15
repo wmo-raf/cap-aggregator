@@ -204,7 +204,7 @@ services:
     # The image's built-in healthcheck probes /health, which 404s under our
     # route_prefix — point it at the prefixed endpoint instead
     healthcheck:
-      test: [ "CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/martin/health" ]
+      test: [ "CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/tiles/health" ]
       interval: 15s
       timeout: 5s
       retries: 5

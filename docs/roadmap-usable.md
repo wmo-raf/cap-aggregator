@@ -186,7 +186,7 @@ These are prerequisites the map/detail views consume:
 A single MapLibre page (per the frontend note above) that delivers the core loop:
 
 - Render `alerts` + `alert_centroids` layers from Martin
-  (`/martin/alerts/{z}/{x}/{y}`), **severity-colored client-side** via data-driven
+  (`/tiles/alerts/{z}/{x}/{y}`), **severity-colored client-side** via data-driven
   expressions (MeteoAlarm palette) — one tileset serves every variant.
 - **Filter panel:** country, severity, urgency, certainty, category, event,
   msg_type, status — passed as tile query params (the tile function already

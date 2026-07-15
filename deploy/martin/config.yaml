@@ -1,6 +1,6 @@
 listen_addresses: "0.0.0.0:3000"
 
-route_prefix: /martin
+route_prefix: /tiles
 
 postgres:
   connection_string: "${DATABASE_URL}"
