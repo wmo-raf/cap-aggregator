@@ -46,6 +46,7 @@ services:
   # django-vite dev_mode (dev settings default True); the browser reaches it
   # at localhost:5173, so the port mapping must match DJANGO_VITE settings.
   capagg-vite:
+    container_name: capagg-vite
     image: node:22-alpine
     working_dir: /frontend
     command: sh -c "npm install && npm run dev"

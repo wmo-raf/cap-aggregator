@@ -22,6 +22,7 @@ See [docs/design.md](docs/design.md) for the full design.
 
 ```bash
 cp .env.sample .env          # edit values (at least DB_PASSWORD, SECRET_KEY)
+docker network create climtech # shared external network (once; override via NETWORK_NAME)
 make dev-build
 make dev-up                  # foreground; use dev-up-d for detached
 make dev-createsuperuser
