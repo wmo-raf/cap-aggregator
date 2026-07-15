@@ -7,7 +7,10 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-# outDir is ../src/... relative to /frontend → /src/capaggregator/static/frontend
+# Django templates are Tailwind @source content — they must exist at /src
+# for template-only utility classes to survive the CSS build. The build also
+# emits into /src/capaggregator/static/frontend (outDir is ../src/...).
+COPY src /src
 RUN npm run build
 
 

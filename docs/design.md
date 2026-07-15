@@ -344,6 +344,11 @@ consistent conventions (`extra_css`/`extra_js` blocks, CSS variables, no inline 
 
 Pages:
 
+> **Amendment (frontend v1, 2026-07):** the site home is a Wagtail *landing
+> page* (hero + CTA, stats strip, latest alerts — `home.HomePage`), not the map
+> explorer. The explorer lives at `/explorer/` with Map/Table/Authorities/Notify
+> views. See PRD issue #38.
+
 1. **Map explorer (home)** — MapLibre map, filter panel (country, severity, urgency, certainty,
    category, event type, msg_type, language), time slider with histogram density waveform, play/
    pause animation stepping `t`, live mode toggle (SSE), severity legend (MeteoAlarm colors),

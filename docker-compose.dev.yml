@@ -51,6 +51,9 @@ services:
     command: sh -c "npm install && npm run dev"
     volumes:
       - ./frontend:/frontend
+      # Tailwind's @source scans Django templates (../../../src/capaggregator
+      # from main.css resolves to /src/capaggregator in this container)
+      - ./src:/src:ro
       - capagg-vite-node-modules:/frontend/node_modules
     ports:
       - "${VITE_PORT:-5173}:5173"
