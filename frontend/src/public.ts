@@ -21,16 +21,45 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Homepage alert groups: all alerts are in the HTML; "View N more" toggles
-  // the ones beyond the first two per authority.
+  // Homepage alert groups: all alerts are in the HTML. One state function
+  // drives visibility from (severity filter, per-group expansion):
+  //  - no filter: first two per group, "View N more" expands the rest
+  //  - filter active: ALL matching alerts show (collapse suspended, expand
+  //    buttons hidden), empty groups disappear, header counts reflect matches
+  const filterBoxes = [...document.querySelectorAll<HTMLInputElement>("[data-severity-filter]")];
+  const groups = [...document.querySelectorAll<HTMLElement>("[data-alert-group]")];
+
+  function applyAlertVisibility() {
+    const selected = filterBoxes.filter((box) => box.checked).map((box) => box.value);
+    const filtering = selected.length > 0;
+
+    for (const group of groups) {
+      const button = group.querySelector<HTMLButtonElement>("[data-expand-alerts]");
+      const expanded = button?.getAttribute("aria-expanded") === "true";
+      let visible = 0;
+
+      group.querySelectorAll<HTMLElement>("li[data-severity]").forEach((item) => {
+        const show = filtering
+          ? selected.includes(item.dataset.severity ?? "")
+          : !("extra" in item.dataset) || expanded;
+        item.classList.toggle("hidden", !show);
+        if (show) visible += 1;
+      });
+
+      if (button) button.classList.toggle("hidden", filtering);
+      const count = group.querySelector("[data-group-count]");
+      if (count) count.textContent = filtering ? String(visible) : (group.dataset.total ?? "");
+      group.classList.toggle("hidden", filtering && visible === 0);
+    }
+  }
+
   document.querySelectorAll<HTMLButtonElement>("[data-expand-alerts]").forEach((button) => {
     button.addEventListener("click", () => {
-      const group = button.closest("[data-alert-group]");
-      if (!group) return;
       const expand = button.getAttribute("aria-expanded") !== "true";
-      group.querySelectorAll(".alert-extra").forEach((item) => item.classList.toggle("hidden", !expand));
       button.setAttribute("aria-expanded", String(expand));
       button.textContent = expand ? "Show less" : (button.dataset.moreLabel ?? "View more");
+      applyAlertVisibility();
     });
   });
+  filterBoxes.forEach((box) => box.addEventListener("change", applyAlertVisibility));
 });

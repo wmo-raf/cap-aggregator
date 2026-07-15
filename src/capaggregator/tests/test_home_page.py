@@ -163,10 +163,10 @@ class AlertGroupTests(TestCase):
         for i in range(4):
             self.assertIn(f"Kenya alert {i}", content)
         # the two beyond the visible limit are collapsed
-        self.assertEqual(content.count("alert-extra"), 2)
+        self.assertEqual(content.count("data-extra"), 2)
         self.assertContains(response, "View 2 more")
         # newest first: alert 0 is visible, alert 3 is collapsed
-        visible_region, collapsed_region = content.split("alert-extra", 1)
+        visible_region, collapsed_region = content.split("data-extra", 1)
         self.assertIn("Kenya alert 0", visible_region)
         self.assertIn("Kenya alert 3", collapsed_region)
 
@@ -174,3 +174,20 @@ class AlertGroupTests(TestCase):
         chain = create_event_chain(self.kenya)
 
         self.assertContains(self.client.get("/"), reverse("alert_detail", args=[chain.pk]))
+
+    def test_severity_filter_panel_and_filterable_markup(self):
+        create_event_chain(self.kenya, infos=[{"severity": "Severe"}])
+
+        response = self.client.get("/")
+        content = response.content.decode()
+
+        self.assertEqual(content.count("data-severity-filter"), 4)  # one checkbox per level
+        self.assertIn('data-severity="severe"', content)  # items are filterable client-side
+        self.assertIn("data-group-count", content)
+
+    def test_stats_legend_explains_the_severity_colors(self):
+        response = self.client.get("/")
+
+        self.assertContains(response, "Severity color legend")
+        for level in ("Extreme", "Severe", "Moderate", "Minor"):
+            self.assertContains(response, f"severity-dot--{level.lower()}")

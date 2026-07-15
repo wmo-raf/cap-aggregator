@@ -67,6 +67,15 @@
                     </dd>
                 </div>
             </dl>
+            <p class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label="Severity color legend">
+                <span class="font-medium">Severity:</span>
+                {% for level in severity_levels %}
+                    <span class="inline-flex items-center gap-1.5">
+                        <span class="severity-dot severity-dot--{{ level|lower }}" aria-hidden="true"></span>
+                        {{ level }}
+                    </span>
+                {% endfor %}
+            </p>
         </section>
 
         {% if alert_groups %}
@@ -76,40 +85,62 @@
                     <a href="{% url 'explorer' %}table"
                        class="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground">Browse the archive</a>
                 </div>
-                <div class="flex flex-col gap-5">
-                    {% for group in alert_groups %}
-                        <div data-alert-group>
-                            <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold">
-                                <span aria-hidden="true">{{ group.flag }}</span>
-                                {{ group.country_name }}
-                                <span class="font-normal text-muted-foreground">· {{ group.authority.name }}</span>
-                                <span class="text-xs font-normal text-muted-foreground">{{ group.alerts|length }}</span>
-                            </h3>
-                            <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                {% for alert in group.alerts %}
-                                    <li {% if forloop.counter > visible_per_authority %}class="alert-extra hidden"{% endif %}>
-                                        <a href="{% url 'alert_detail' alert.chain_id %}"
-                                           class="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent">
-                                            <span class="severity-badge severity-badge--{{ alert.severity|lower }}">{{ alert.severity }}</span>
-                                            <span class="min-w-0">
-                                                <span class="block truncate text-sm font-medium">{{ alert.headline|default:alert.event }}</span>
-                                                <span class="block text-xs text-muted-foreground">{{ alert.event }} · {{ alert.effective }}</span>
-                                            </span>
-                                        </a>
+                <div class="flex flex-col gap-4 lg:flex-row">
+                    <aside class="w-full shrink-0 lg:w-56">
+                        <section class="sidebar-panel" aria-label="Filter active alerts">
+                            <header class="sidebar-panel__header">
+                                <h3>Severity</h3>
+                            </header>
+                            <ul class="flex flex-col gap-0.5 p-3">
+                                {% for level in severity_levels %}
+                                    <li>
+                                        <label class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                                            <input type="checkbox" class="size-3.5 accent-primary" value="{{ level|lower }}" data-severity-filter>
+                                            <span class="severity-dot severity-dot--{{ level|lower }}" aria-hidden="true"></span>
+                                            {{ level }}
+                                        </label>
                                     </li>
                                 {% endfor %}
                             </ul>
-                            {% if group.extra_count %}
-                                <button type="button"
-                                        class="mt-2 text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
-                                        data-expand-alerts
-                                        data-more-label="View {{ group.extra_count }} more"
-                                        aria-expanded="false">
-                                    View {{ group.extra_count }} more
-                                </button>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
+                        </section>
+                    </aside>
+
+                    <div class="flex min-w-0 flex-1 flex-col gap-5">
+                        {% for group in alert_groups %}
+                            <div data-alert-group data-total="{{ group.alerts|length }}">
+                                <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold">
+                                    <span aria-hidden="true">{{ group.flag }}</span>
+                                    {{ group.country_name }}
+                                    <span class="font-normal text-muted-foreground">· {{ group.authority.name }}</span>
+                                    <span class="text-xs font-normal text-muted-foreground" data-group-count>{{ group.alerts|length }}</span>
+                                </h3>
+                                <ul class="flex flex-col gap-3">
+                                    {% for alert in group.alerts %}
+                                        <li data-severity="{{ alert.severity|lower }}"
+                                            {% if forloop.counter > visible_per_authority %}data-extra class="hidden"{% endif %}>
+                                            <a href="{% url 'alert_detail' alert.chain_id %}"
+                                               class="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent">
+                                                <span class="severity-badge severity-badge--{{ alert.severity|lower }}">{{ alert.severity }}</span>
+                                                <span class="min-w-0">
+                                                    <span class="block truncate text-sm font-medium">{{ alert.headline|default:alert.event }}</span>
+                                                    <span class="block text-xs text-muted-foreground">{{ alert.event }} · {{ alert.effective }}</span>
+                                                </span>
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                                {% if group.extra_count %}
+                                    <button type="button"
+                                            class="mt-2 text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                                            data-expand-alerts
+                                            data-more-label="View {{ group.extra_count }} more"
+                                            aria-expanded="false">
+                                        View {{ group.extra_count }} more
+                                    </button>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </section>
         {% endif %}

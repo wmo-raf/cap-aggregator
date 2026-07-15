@@ -144,4 +144,5 @@ class HomePage(Page):
             groups.values(), key=lambda g: (g["worst_rank"], g["country_name"], g["authority"].name)
         )
         context["visible_per_authority"] = VISIBLE_ALERTS_PER_AUTHORITY
+        context["severity_levels"] = SEVERITY_ORDER
         return context
