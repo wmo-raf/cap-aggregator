@@ -154,6 +154,20 @@
     @apply h-72 w-full rounded-lg border border-border;
   }
 
+  /* Lineage timeline message-type badges (alert detail + version pages) */
+  .timeline-type {
+    @apply inline-flex w-16 items-center justify-center rounded-full border px-2 py-0.5 text-xs font-semibold;
+  }
+  .timeline-type--alert {
+    @apply border-border bg-secondary text-secondary-foreground;
+  }
+  .timeline-type--update {
+    @apply border-border bg-muted text-foreground;
+  }
+  .timeline-type--cancel {
+    @apply border-destructive/40 bg-destructive/10 text-destructive;
+  }
+
   /* Map click popups — maplibre defaults are white; restyle with tokens */
   .maplibregl-popup-content {
     @apply rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-md;

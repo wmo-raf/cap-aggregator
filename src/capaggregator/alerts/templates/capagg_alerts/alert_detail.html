@@ -3,6 +3,16 @@
 
 {% block title %}{{ resolved.headline|default:resolved.event }} — CAP Aggregator{% endblock %}
 
+{% block meta %}
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{ resolved.headline|default:resolved.event }}">
+    <meta property="og:description" content="{{ resolved.severity }} {{ resolved.event }} issued by {{ chain.authority.name }}{% if resolved.expires %} — in effect until {{ resolved.expires|date:'Y-m-d H:i e' }}{% endif %}{% if chain.is_cancelled %} (cancelled){% endif %}">
+    <meta property="og:url" content="{{ request.build_absolute_uri }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ resolved.headline|default:resolved.event }}">
+    <meta name="twitter:description" content="{{ resolved.severity }} {{ resolved.event }} — {{ chain.authority.name }}">
+{% endblock %}
+
 {% block extra_js %}
     {% if area_geojson %}{% vite_asset 'src/alert-detail.ts' %}{% endif %}
 {% endblock %}
@@ -49,27 +59,41 @@
         </section>
     {% endif %}
 
-    {% for info in infos %}
-        <section lang="{{ info.language }}" class="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
-            <div class="flex items-center justify-between gap-2">
-                <h2 class="text-lg font-semibold">{{ info.headline|default:info.event }}</h2>
-                {% if infos|length > 1 %}
-                    <span class="rounded-full border border-border bg-secondary px-2 py-0.5 text-xs font-medium uppercase text-secondary-foreground">{{ info.language }}</span>
-                {% endif %}
-            </div>
-            {% if info.description %}
-                <div>
-                    <h3 class="text-sm font-semibold text-muted-foreground">Description</h3>
-                    <p class="whitespace-pre-line text-sm">{{ info.description }}</p>
-                </div>
-            {% endif %}
-            {% if info.instruction %}
-                <div>
-                    <h3 class="text-sm font-semibold text-muted-foreground">Instruction</h3>
-                    <p class="whitespace-pre-line text-sm">{{ info.instruction }}</p>
-                </div>
-            {% endif %}
+    {% if timeline|length > 1 %}
+        <section class="alert-timeline" aria-label="Alert history">
+            <h2 class="mb-2 text-sm font-semibold text-muted-foreground">History</h2>
+            <ol class="flex flex-col gap-2">
+                {% for message in timeline %}
+                    <li class="flex items-center gap-3 text-sm">
+                        <a href="{% url 'alert_version' chain.pk message.pk %}" class="flex items-center gap-3 transition-colors hover:text-foreground">
+                            <span class="timeline-type timeline-type--{{ message.msg_type|lower }}">{{ message.msg_type }}</span>
+                            <span class="text-muted-foreground">{{ message.sent }}</span>
+                        </a>
+                        {% if message.pk == alert.pk %}
+                            <span class="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">current</span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ol>
         </section>
-    {% endfor %}
+    {% endif %}
+
+    {% include "capagg_alerts/includes/info_blocks.html" %}
+
+    {% if related %}
+        <section aria-label="Related alerts">
+            <h2 class="mb-2 text-sm font-semibold text-muted-foreground">More from {{ chain.authority.name }}</h2>
+            <ul class="flex flex-col gap-2">
+                {% for other in related %}
+                    <li>
+                        <a href="{% url 'alert_detail' other.chain_id %}" class="flex items-center gap-2 rounded-md border border-border bg-card p-2.5 text-sm transition-colors hover:bg-accent">
+                            <span class="severity-badge severity-badge--{{ other.severity|lower }}">{{ other.severity }}</span>
+                            <span class="truncate">{{ other.headline|default:other.event }}</span>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+    {% endif %}
 </article>
 {% endblock %}

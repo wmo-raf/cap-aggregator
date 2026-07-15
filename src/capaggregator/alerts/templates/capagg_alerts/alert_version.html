@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}{{ alert.msg_type }} {{ alert.sent|date:"Y-m-d H:i" }} — CAP Aggregator{% endblock %}
+
+{% block content %}
+<article class="flex flex-col gap-6">
+    {% if not is_current %}
+        <div class="alert-status-banner alert-status-banner--expired" role="status">
+            This {{ alert.msg_type|lower }} message has been <strong>superseded</strong>.
+            <a href="{% url 'alert_detail' chain.pk %}" class="underline underline-offset-2">View the current state of this alert</a>.
+        </div>
+    {% else %}
+        <p class="text-sm text-muted-foreground">
+            This is the latest message of this alert —
+            <a href="{% url 'alert_detail' chain.pk %}" class="underline underline-offset-2">view the resolved alert page</a>.
+        </p>
+    {% endif %}
+
+    <header class="flex flex-col gap-2">
+        <p class="text-sm text-muted-foreground">
+            <span class="timeline-type timeline-type--{{ alert.msg_type|lower }}">{{ alert.msg_type }}</span>
+            sent {{ alert.sent }} by <strong>{{ chain.authority.name }}</strong>
+        </p>
+        <h1 class="text-2xl font-semibold">{{ alert.identifier }}</h1>
+    </header>
+
+    {% include "capagg_alerts/includes/info_blocks.html" %}
+</article>
+{% endblock %}
