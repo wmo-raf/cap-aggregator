@@ -3,6 +3,7 @@ import { ExternalLink, Landmark } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
+import ExplorerSidebar from "@/components/ExplorerSidebar.vue";
 import { type Authority, fetchAuthorities } from "@/lib/api";
 import {
   type AuthoritiesState,
@@ -53,8 +54,8 @@ onMounted(async () => {
       </p>
     </header>
 
-    <div class="flex flex-col gap-4 md:flex-row">
-      <aside class="w-full shrink-0 md:w-56">
+    <div class="flex flex-col gap-4 lg:flex-row">
+      <ExplorerSidebar label="Authority filters">
         <section class="sidebar-panel" aria-label="Authority filters">
           <header class="sidebar-panel__header">
             <h3>Filters</h3>
@@ -84,7 +85,7 @@ onMounted(async () => {
             </fieldset>
           </div>
         </section>
-      </aside>
+      </ExplorerSidebar>
 
       <div class="min-w-0 flex-1">
         <p v-if="loadState === 'loading'" class="text-sm text-muted-foreground">Loading authorities…</p>
