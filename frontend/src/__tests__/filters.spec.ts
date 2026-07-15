@@ -71,4 +71,13 @@ describe("alert filters", () => {
 
     expect(params.get("bbox")).toBeNull();
   });
+
+  it("carries the selected time so the list time-travels with the map", () => {
+    const t = new Date("2026-07-10T12:30:00Z");
+
+    const params = searchParamsFromFilters(emptyFilters(), null, t);
+    expect(params.get("t")).toBe("2026-07-10T12:30:00.000Z");
+
+    expect(searchParamsFromFilters(emptyFilters(), null, null).get("t")).toBeNull();
+  });
 });

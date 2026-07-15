@@ -7,6 +7,7 @@ import { useRoute, useRouter } from "vue-router";
 import AlertSidebar from "@/components/AlertSidebar.vue";
 import BasemapSwitcher from "@/components/BasemapSwitcher.vue";
 import SeverityLegend from "@/components/SeverityLegend.vue";
+import TimeControl from "@/components/TimeControl.vue";
 import { useTheme } from "@/composables/useTheme";
 import { ALERTS_SOURCE_ID, alertLayers } from "@/lib/alertLayers";
 import { type AlertListItem, fetchAlertList, fetchAuthorities } from "@/lib/api";
@@ -19,6 +20,7 @@ import {
   filtersToRouteQuery,
   tileQueryFromFilters,
 } from "@/lib/filters";
+import { roundToBucket, timeFromQuery, timeToQuery } from "@/lib/timeControl";
 
 const container = ref<HTMLDivElement | null>(null);
 let map: maplibregl.Map | null = null;
@@ -31,11 +33,13 @@ const { isDark } = useTheme();
 const manualBasemap = ref<BasemapId | null>(null);
 const activeBasemap = computed(() => resolveBasemapId(manualBasemap.value, isDark.value));
 
-// --- Filters: URL is the source of truth (deep-linkable) ---
+// --- Filters + selected time: URL is the source of truth (deep-linkable) ---
 const filters = ref<AlertFilters>(filtersFromRouteQuery(route.query));
+const selectedTime = ref<Date | null>(timeFromQuery(route.query));
 
 function tileUrl(): string {
   const params = new URLSearchParams(tileQueryFromFilters(filters.value));
+  if (selectedTime.value) params.set("t", roundToBucket(selectedTime.value).toISOString());
   const qs = params.toString();
   return qs ? `${alertTileUrlTemplate()}?${qs}` : alertTileUrlTemplate();
 }
@@ -75,7 +79,7 @@ function refreshList(immediate = false) {
     async () => {
       listState.value = "loading";
       try {
-        const page = await fetchAlertList(filters.value, currentBbox());
+        const page = await fetchAlertList(filters.value, currentBbox(), selectedTime.value);
         alerts.value = page.alerts;
         total.value = page.total;
         listState.value = "ready";
@@ -87,20 +91,19 @@ function refreshList(immediate = false) {
   );
 }
 
-watch(
-  filters,
-  () => {
-    // sync URL (preserving non-facet params like the future time param)
-    const query = { ...route.query };
-    for (const param of FACET_PARAMS) delete query[param];
-    router.replace({ query: { ...query, ...filtersToRouteQuery(filters.value) } });
-    // sync tiles + list
-    const source = map?.getSource(ALERTS_SOURCE_ID) as maplibregl.VectorTileSource | undefined;
-    source?.setTiles([tileUrl()]);
-    refreshList(true);
-  },
-  { deep: true },
-);
+function syncState() {
+  // sync URL: facets + time, preserving anything else
+  const query = { ...route.query };
+  for (const param of [...FACET_PARAMS, "t"]) delete query[param];
+  router.replace({ query: { ...query, ...filtersToRouteQuery(filters.value), ...timeToQuery(selectedTime.value) } });
+  // sync tiles + list
+  const source = map?.getSource(ALERTS_SOURCE_ID) as maplibregl.VectorTileSource | undefined;
+  source?.setTiles([tileUrl()]);
+  refreshList(true);
+}
+
+watch(filters, syncState, { deep: true });
+watch(selectedTime, syncState);
 
 watch(activeBasemap, (id) => {
   map?.setStyle(basemapStyleUrl(id));
@@ -155,6 +158,9 @@ onUnmounted(() => {
       <div class="absolute right-3 bottom-6 flex flex-col items-end gap-2">
         <SeverityLegend />
         <BasemapSwitcher :active="activeBasemap" @select="manualBasemap = $event" />
+      </div>
+      <div class="absolute bottom-6 left-1/2 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2">
+        <TimeControl :model-value="selectedTime" @update:model-value="selectedTime = $event" />
       </div>
     </div>
   </div>
