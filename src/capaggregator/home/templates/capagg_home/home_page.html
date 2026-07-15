@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load wagtailimages_tags %}
+
+{% block title %}{{ page.title }} — CAP Aggregator{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-10">
+    <section class="capagg-hero {% if not page.hero_image %}capagg-hero--default{% endif %} relative overflow-hidden rounded-xl border border-border">
+        {% if page.hero_image %}
+            {% image page.hero_image fill-1200x420 as hero_rendition %}
+            <img src="{{ hero_rendition.url }}" alt="" class="absolute inset-0 h-full w-full object-cover" aria-hidden="true">
+            <div class="absolute inset-0 bg-black/50" aria-hidden="true"></div>
+        {% endif %}
+        <div class="relative flex flex-col items-start gap-4 px-6 py-14 sm:px-10 {% if page.hero_image %}text-white{% endif %}">
+            <h1 class="max-w-2xl text-3xl font-semibold sm:text-4xl">{{ page.hero_heading }}</h1>
+            {% if page.hero_intro %}
+                <p class="max-w-xl text-sm {% if page.hero_image %}text-white/85{% else %}text-muted-foreground{% endif %}">{{ page.hero_intro }}</p>
+            {% endif %}
+            <a href="{% url 'explorer' %}"
+               class="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow transition-opacity hover:opacity-90">
+                View the live alert map
+            </a>
+        </div>
+    </section>
+
+    <section aria-label="Coverage statistics">
+        <dl class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="rounded-lg border border-border bg-card p-5">
+                <dt class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Active alerts</dt>
+                <dd class="mt-1 text-3xl font-semibold">{{ stats.active_alerts }}</dd>
+            </div>
+            <div class="rounded-lg border border-border bg-card p-5">
+                <dt class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Alerting authorities</dt>
+                <dd class="mt-1 text-3xl font-semibold">{{ stats.authorities }}</dd>
+            </div>
+            <div class="rounded-lg border border-border bg-card p-5">
+                <dt class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Countries covered</dt>
+                <dd class="mt-1 text-3xl font-semibold">{{ stats.countries }}</dd>
+            </div>
+        </dl>
+    </section>
+
+    {% if latest_alerts %}
+        <section aria-label="Latest alerts">
+            <div class="mb-3 flex items-baseline justify-between">
+                <h2 class="text-lg font-semibold">Latest alerts</h2>
+                <a href="{% url 'explorer' %}table" class="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground">Browse all</a>
+            </div>
+            <ul class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {% for alert in latest_alerts %}
+                    <li>
+                        <a href="{% url 'alert_detail' alert.chain_id %}"
+                           class="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent">
+                            <span class="severity-badge severity-badge--{{ alert.severity|lower }}">{{ alert.severity }}</span>
+                            <span class="min-w-0">
+                                <span class="block truncate text-sm font-medium">{{ alert.headline|default:alert.event }}</span>
+                                <span class="block text-xs text-muted-foreground">{{ alert.authority.name }} · {{ alert.effective }}</span>
+                            </span>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </section>
+    {% endif %}
+</div>
+{% endblock %}
