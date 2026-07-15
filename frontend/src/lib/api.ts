@@ -1,0 +1,89 @@
+import { type DateRange, tableSearchParams } from "@/lib/dateRange";
+import { type AlertFilters, searchParamsFromFilters } from "@/lib/filters";
+
+export interface Authority {
+  name: string;
+  slug: string;
+  country: string;
+  country_name: string;
+  website: string;
+  active_alert_count: number;
+}
+
+interface Page<T> {
+  results: T[];
+  next: string | null;
+}
+
+export interface AlertListItem {
+  id: number;
+  chain: number;
+  event: string;
+  headline: string;
+  severity: string;
+  authority: string;
+  expires: string | null;
+  is_cancelled: boolean;
+}
+
+interface GeoPage {
+  count: number;
+  results: { features: { id: number; properties: Omit<AlertListItem, "id"> }[] };
+}
+
+/** Alerts matching the facet filters within the viewport bbox (first page,
+ * newest first — the sidebar is a scan list, not an archive). */
+export async function fetchAlertList(
+  filters: AlertFilters,
+  bbox: [number, number, number, number] | null,
+  time: Date | null = null,
+): Promise<{ alerts: AlertListItem[]; total: number }> {
+  const params = searchParamsFromFilters(filters, bbox, time);
+  const response = await fetch(`/api/search/?${params}`, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`alert search failed: ${response.status}`);
+  const page = (await response.json()) as GeoPage;
+  return {
+    total: page.count,
+    alerts: page.results.features.map((f) => ({ id: f.id, ...f.properties })),
+  };
+}
+
+export interface TableAlert extends AlertListItem {
+  status: string;
+  msg_type: string;
+  countries: string[];
+  effective: string | null;
+}
+
+/** One table page of alerts effective within the range (newest first). */
+export async function fetchAlertTable(
+  filters: AlertFilters,
+  range: DateRange,
+  offset = 0,
+): Promise<{ alerts: TableAlert[]; total: number }> {
+  const params = tableSearchParams(filters, range, offset);
+  const response = await fetch(`/api/search/?${params}`, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`alert search failed: ${response.status}`);
+  const page = (await response.json()) as {
+    count: number;
+    results: { features: { id: number; properties: Omit<TableAlert, "id"> }[] };
+  };
+  return {
+    total: page.count,
+    alerts: page.results.features.map((f) => ({ id: f.id, ...f.properties })),
+  };
+}
+
+/** All active authorities, following DRF pagination if there are many. */
+export async function fetchAuthorities(): Promise<Authority[]> {
+  const authorities: Authority[] = [];
+  let url: string | null = "/api/authorities/";
+  while (url) {
+    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error(`authorities request failed: ${response.status}`);
+    const page = (await response.json()) as Page<Authority>;
+    authorities.push(...page.results);
+    url = page.next;
+  }
+  return authorities;
+}
