@@ -1,17 +1,12 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.http import JsonResponse
 from django.urls import include, path, re_path
 from wagtail import urls as wagtail_urls
 from wagtail.admin import urls as wagtailadmin_urls
 from wagtail.documents import urls as wagtaildocs_urls
 
-
-def health(request):
-    """Container healthcheck endpoint (also gates Martin startup in compose)."""
-    return JsonResponse({"status": "ok"})
-
+from .views import health
 
 urlpatterns = [
     path("health/", health, name="health"),

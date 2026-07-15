@@ -79,6 +79,7 @@ x-app-common: &app-common
 
 services:
   capagg-db:
+    container_name: capagg-db
     image: imresamu/postgis:18-3.6
     environment:
       POSTGRES_DB: ${DB_NAME:-capagg}
@@ -100,6 +101,7 @@ services:
     restart: unless-stopped
 
   capagg-pgbouncer:
+    container_name: capagg-pgbouncer
     image: edoburu/pgbouncer:v1.25.1-p0
     environment:
       DB_HOST: capagg-db
@@ -127,6 +129,7 @@ services:
     restart: unless-stopped
 
   capagg-redis:
+    container_name: capagg-redis
     image: redis:7-alpine
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
@@ -136,6 +139,7 @@ services:
     restart: unless-stopped
 
   capagg-mosquitto:
+    container_name: capagg-mosquitto
     image: eclipse-mosquitto:2
     # Custom entrypoint: watches the auth files (rewritten automatically by the
     # app on SourceAuthority save) and SIGHUPs the broker when they change.
@@ -155,6 +159,7 @@ services:
     restart: unless-stopped
 
   capagg-app:
+    container_name: capagg-app
     <<: *app-common
     command: gunicorn
     healthcheck:
@@ -165,32 +170,44 @@ services:
       start_period: 60s
 
   capagg-worker-default:
+    container_name: capagg-worker-default
     <<: *app-common
     command: celery-default-worker
     environment: *worker-variables
 
   capagg-worker-ingestion:
+    container_name: capagg-worker-ingestion
     <<: *app-common
     command: celery-ingestion-worker
     environment: *worker-variables
 
   capagg-beat:
+    container_name: capagg-beat
     <<: *app-common
     command: celery-beat
     environment: *worker-variables
 
   capagg-mqtt-consumer:
+    container_name: capagg-mqtt-consumer
     <<: *app-common
     command: mqtt-consumer
     environment: *worker-variables
 
   capagg-martin:
+    container_name: capagg-martin
     image: ghcr.io/maplibre/martin:1.5.0
     environment:
       DATABASE_URL: postgresql://${DB_USER:-capagg}:${DB_PASSWORD:?}@capagg-db:5432/${DB_NAME:-capagg}
     volumes:
       - ./deploy/martin/config.yaml:/config/config.yaml:ro
     command: --config /config/config.yaml
+    # The image's built-in healthcheck probes /health, which 404s under our
+    # route_prefix — point it at the prefixed endpoint instead
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/martin/health" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     # Martin reads its catalog (the capagg_alerts_tile function) once at startup,
     # so it must start only after the app has migrated and created the function
     depends_on:
@@ -201,6 +218,7 @@ services:
     restart: unless-stopped
 
   capagg-web-proxy:
+    container_name: capagg-web-proxy
     image: nginx:1.27-alpine
     ports:
       - "${WEB_PORT:-8080}:80"
@@ -212,3 +230,10 @@ services:
       - capagg-app
       - capagg-martin
     restart: unless-stopped
+
+# Shared external network so companion stacks (e.g. other climtech services)
+# can reach these containers by name. Create once: docker network create climtech
+networks:
+  default:
+    external: true
+    name: ${NETWORK_NAME:-climtech}
