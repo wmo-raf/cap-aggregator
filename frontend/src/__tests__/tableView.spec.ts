@@ -172,6 +172,64 @@ describe("TableView", () => {
     expect(wrapper.text()).toContain("Could not load alerts");
   });
 
+  it("checks the matching date preset on load and hides the custom pickers", async () => {
+    stubFetch([feature(1)]);
+
+    const { wrapper } = await mountView(); // default range == last 7 days
+    await flushPromises();
+
+    expect((wrapper.find('[data-testid="range-preset-7d"]').element as HTMLInputElement).checked).toBe(true);
+    expect(wrapper.find('[data-testid="range-from"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="range-to"]').exists()).toBe(false);
+  });
+
+  it("resolves a clicked preset to absolute from/to in the URL and refetches", async () => {
+    const fetchMock = stubFetch([feature(1)]);
+    const todayIso = new Date().toISOString().slice(0, 10);
+
+    const { wrapper, router } = await mountView();
+    await flushPromises();
+
+    await wrapper.find('[data-testid="range-preset-today"]').setValue(true);
+    await flushPromises();
+
+    expect(router.currentRoute.value.query.from).toBe(todayIso);
+    expect(router.currentRoute.value.query.to).toBe(todayIso);
+    const lastSearch = fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith("/api/search/")).at(-1)!;
+    expect(lastSearch).toContain(`effective_from=${todayIso}`);
+    expect(lastSearch).toContain(`effective_to=${todayIso}`);
+  });
+
+  it("opens a non-preset deep link as Custom with the pickers prefilled", async () => {
+    stubFetch([feature(1)]);
+
+    const { wrapper } = await mountView("/table?from=2026-06-01&to=2026-06-30");
+    await flushPromises();
+
+    expect((wrapper.find('[data-testid="range-preset-custom"]').element as HTMLInputElement).checked).toBe(true);
+    expect((wrapper.find('[data-testid="range-from"]').element as HTMLInputElement).value).toBe("2026-06-01");
+    expect((wrapper.find('[data-testid="range-to"]').element as HTMLInputElement).value).toBe("2026-06-30");
+  });
+
+  it("switching to Custom reveals the pickers without refetching until a date is edited", async () => {
+    const fetchMock = stubFetch([feature(1)]);
+
+    const { wrapper } = await mountView();
+    await flushPromises();
+    const searchCalls = () => fetchMock.mock.calls.filter((c) => String(c[0]).startsWith("/api/search/")).length;
+    const before = searchCalls();
+
+    await wrapper.find('[data-testid="range-preset-custom"]').setValue(true);
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="range-from"]').exists()).toBe(true);
+    expect(searchCalls()).toBe(before); // no reload from merely revealing the pickers
+
+    await wrapper.find('[data-testid="range-from"]').setValue("2026-07-01");
+    await flushPromises();
+    expect(searchCalls()).toBe(before + 1);
+  });
+
   it("groups by effective calendar day by default", async () => {
     stubFetch([feature(1)]);
 

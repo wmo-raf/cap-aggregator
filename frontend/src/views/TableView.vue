@@ -3,6 +3,7 @@ import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
+import DateRangePanel from "@/components/DateRangePanel.vue";
 import ExplorerSidebar from "@/components/ExplorerSidebar.vue";
 import FilterPanel from "@/components/FilterPanel.vue";
 import { fetchAlertTable, fetchAuthorities, type TableAlert } from "@/lib/api";
@@ -149,33 +150,7 @@ onMounted(async () => {
 <template>
   <section class="relative flex h-full w-full">
     <ExplorerSidebar title="Alert archive" description="Alerts issued within the selected date range.">
-        <section class="sidebar-panel" aria-label="Date range">
-          <header class="sidebar-panel__header">
-            <h3>Date range</h3>
-          </header>
-          <div class="flex flex-col gap-2 p-3">
-            <label class="flex flex-col text-xs text-muted-foreground">
-              From
-              <input
-                type="date"
-                class="mt-0.5 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
-                :value="range.from"
-                data-testid="range-from"
-                @change="range = { ...range, from: ($event.target as HTMLInputElement).value }"
-              />
-            </label>
-            <label class="flex flex-col text-xs text-muted-foreground">
-              To
-              <input
-                type="date"
-                class="mt-0.5 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
-                :value="range.to"
-                data-testid="range-to"
-                @change="range = { ...range, to: ($event.target as HTMLInputElement).value }"
-              />
-            </label>
-          </div>
-        </section>
+        <DateRangePanel v-model="range" />
 
         <FilterPanel v-model="filters" :countries="countries" />
       </ExplorerSidebar>

@@ -16,10 +16,35 @@ function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Last 7 days, inclusive of today. */
+/** Last 7 days, inclusive of today (== the "7d" preset). */
 export function defaultRange(now: Date = new Date()): DateRange {
-  const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  return presetRange("7d", now);
+}
+
+export type DatePresetKey = "today" | "7d" | "30d" | "90d";
+
+/** The one-click ranges offered by the Date range panel, besides Custom. */
+export const DATE_PRESETS: { key: DatePresetKey; label: string; days: number }[] = [
+  { key: "today", label: "Today", days: 0 },
+  { key: "7d", label: "Last 7 days", days: 7 },
+  { key: "30d", label: "Last 30 days", days: 30 },
+  { key: "90d", label: "Last 90 days", days: 90 },
+];
+
+/** A preset resolved to the absolute range it means right now. */
+export function presetRange(key: DatePresetKey, now: Date = new Date()): DateRange {
+  const preset = DATE_PRESETS.find((p) => p.key === key)!;
+  const from = new Date(now.getTime() - preset.days * 24 * 60 * 60 * 1000);
   return { from: isoDate(from), to: isoDate(now) };
+}
+
+/** The preset an absolute range corresponds to today, or null (custom). */
+export function matchPreset(range: DateRange, now: Date = new Date()): DatePresetKey | null {
+  const match = DATE_PRESETS.find((p) => {
+    const resolved = presetRange(p.key, now);
+    return resolved.from === range.from && resolved.to === range.to;
+  });
+  return match?.key ?? null;
 }
 
 export function rangeToQuery(range: DateRange): Record<string, string> {
