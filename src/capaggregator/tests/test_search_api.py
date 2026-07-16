@@ -20,6 +20,23 @@ class SearchApiTests(TestCase):
         self.assertEqual(feature["properties"]["chain"], chain.pk)
 
 
+class AuthorityPropertiesTests(TestCase):
+    """The Country > Authority table grouping needs the issuing authority's
+    display name and primary country on each feature — no client-side join."""
+
+    def test_results_carry_the_issuing_authority_name_and_country(self):
+        authority = create_source_authority(name="Kenya Met Department", country="ke")
+        create_event_chain(authority)
+
+        response = self.client.get(reverse("alert_search"))
+
+        self.assertEqual(response.status_code, 200)
+        properties = response.json()["results"]["features"][0]["properties"]
+        self.assertEqual(properties["authority_name"], "Kenya Met Department")
+        self.assertEqual(properties["authority_country"], "KE")
+        self.assertEqual(properties["authority_country_name"], "Kenya")
+
+
 class EffectiveRangeTests(TestCase):
     """The Table view browses alert history by effective-date *range* —
     deliberately different semantics from the map's point-in-time `t`."""
@@ -121,4 +138,41 @@ class SeverityOrderingTests(TestCase):
         self.assertEqual(
             self.headlines(),
             ["Minor newest", "Severe newer", "Severe older", "Extreme old"],
+        )
+
+
+class CountryOrderingTests(TestCase):
+    """order=country sorts by the issuing authority's country, then authority
+    name, then newest-first — so Country > Authority grouped, paginated lists
+    stay globally contiguous."""
+
+    def setUp(self):
+        base = timezone.now() - timedelta(hours=1)
+
+        def chain(authority, hours_ago, headline):
+            eff = base - timedelta(hours=hours_ago)
+            return create_event_chain(
+                authority,
+                sent=eff,
+                infos=[{"headline": headline, "effective": eff, "expires": eff + timedelta(days=2)}],
+            )
+
+        za_provincial = create_source_authority(name="ZA Provincial Service", country="za")
+        za_national = create_source_authority(name="SA Weather Service", country="za")
+        kenya = create_source_authority(name="Kenya Met Department", country="ke")
+
+        chain(za_provincial, 0, "ZA provincial newest")
+        chain(za_national, 2, "SAWS older")
+        chain(za_national, 1, "SAWS newer")
+        chain(kenya, 3, "Kenya oldest")
+
+    def headlines(self, **params):
+        response = self.client.get(reverse("alert_search"), params)
+        self.assertEqual(response.status_code, 200)
+        return [f["properties"]["headline"] for f in response.json()["results"]["features"]]
+
+    def test_order_country_groups_by_country_then_authority_then_newest(self):
+        self.assertEqual(
+            self.headlines(order="country"),
+            ["Kenya oldest", "SAWS newer", "SAWS older", "ZA provincial newest"],
         )

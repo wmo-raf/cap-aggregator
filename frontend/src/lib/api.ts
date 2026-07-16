@@ -1,5 +1,6 @@
 import { type DateRange, tableSearchParams } from "@/lib/dateRange";
 import { type AlertFilters, searchParamsFromFilters } from "@/lib/filters";
+import { DEFAULT_GROUPING, type TableGrouping } from "@/lib/grouping";
 
 export interface Authority {
   name: string;
@@ -53,15 +54,20 @@ export interface TableAlert extends AlertListItem {
   msg_type: string;
   countries: string[];
   effective: string | null;
+  authority_name: string;
+  authority_country: string;
+  authority_country_name: string;
 }
 
-/** One table page of alerts effective within the range (newest first). */
+/** One table page of alerts effective within the range, server-ordered to
+ * match the active grouping. */
 export async function fetchAlertTable(
   filters: AlertFilters,
   range: DateRange,
   offset = 0,
+  grouping: TableGrouping = DEFAULT_GROUPING,
 ): Promise<{ alerts: TableAlert[]; total: number }> {
-  const params = tableSearchParams(filters, range, offset);
+  const params = tableSearchParams(filters, range, offset, grouping);
   const response = await fetch(`/api/search/?${params}`, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`alert search failed: ${response.status}`);
   const page = (await response.json()) as {

@@ -1,6 +1,5 @@
 """API views — search, authorities, histogram, SSE live stream."""
 
-import json
 from datetime import timedelta
 
 from django.db.models import Case, Count, IntegerField, Q, When
@@ -59,7 +58,7 @@ def _parse_bound(value, *, end=False):
         OpenApiParameter("effective_from", str, description="Range mode: alerts effective on/after this ISO datetime or date."),
         OpenApiParameter("effective_to", str, description="Range mode: alerts effective up to this ISO datetime (or through this date). Range mode includes expired alerts."),
         OpenApiParameter("t", str, description="Point-in-time: alerts active at this instant (default: now when active=true)."),
-        OpenApiParameter("order", str, description="'severity' ranks worst-first (Extreme→Unknown, newest within); default is newest-first."),
+        OpenApiParameter("order", str, description="'severity' ranks worst-first (Extreme→Unknown, newest within); 'country' sorts by issuing authority's country, then authority name, newest within; default is newest-first."),
     ]
 )
 class AlertSearchView(ListAPIView):
@@ -114,6 +113,9 @@ class AlertSearchView(ListAPIView):
             qs = qs.filter(geom__intersects=Polygon.from_bbox([float(v) for v in bbox.split(",")]))
 
         # TODO: full-text q over AlertInfo.search_vector; language filter; resolved=false raw mode
+        if params.get("order") == "country":
+            # keeps Country > Authority grouped, paginated lists globally contiguous
+            return qs.order_by("authority__country", "authority__name", "-effective")
         if params.get("order") == "severity":
             # keeps severity-grouped, paginated lists globally contiguous
             rank = Case(

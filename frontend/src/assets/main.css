@@ -104,6 +104,17 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Interactive controls read as clickable. Browsers give native form
+   * controls the OS arrow cursor, and cursor-pointer on a wrapping label
+   * never reaches the control itself — opt them all in once, here. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  select:not(:disabled),
+  summary,
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /* Components for server-rendered templates (alert detail, base chrome).
@@ -156,7 +167,8 @@
 
   /* Sidebar sections (explorer filter/list panels) — distinct bordered blocks */
   .sidebar-panel {
-    @apply overflow-hidden rounded-lg border border-border/80 bg-card;
+    /* shrink-0: panels must never squeeze each other — the sidebar body scrolls instead */
+    @apply shrink-0 overflow-hidden rounded-lg border border-border/80 bg-card;
   }
   .sidebar-panel__header {
     @apply flex items-center justify-between border-b border-border/60 bg-muted px-3 py-2;

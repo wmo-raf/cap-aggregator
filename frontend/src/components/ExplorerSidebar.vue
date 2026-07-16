@@ -22,37 +22,43 @@ const close = () => sidebar.close(view.value);
 </script>
 
 <template>
+  <!-- Push transition: the aside's layout width animates (making room),
+       while the fixed-width panel inside is pinned to the aside's moving
+       right edge — so it slides in as one solid piece instead of squeezing
+       or fading. -->
   <Transition
-    enter-active-class="transition-all duration-200 ease-out overflow-hidden"
-    enter-from-class="max-w-0 opacity-0"
-    enter-to-class="max-w-80 opacity-100"
-    leave-active-class="transition-all duration-200 ease-in overflow-hidden"
-    leave-from-class="max-w-80 opacity-100"
-    leave-to-class="max-w-0 opacity-0"
+    enter-active-class="transition-[max-width] duration-200 ease-out overflow-hidden"
+    enter-from-class="max-w-0"
+    enter-to-class="max-w-80"
+    leave-active-class="transition-[max-width] duration-200 ease-in overflow-hidden"
+    leave-from-class="max-w-80"
+    leave-to-class="max-w-0"
   >
     <aside
       v-if="open"
       :aria-label="title"
-      class="absolute inset-y-0 left-0 z-30 flex h-full w-80 max-w-full shrink-0 flex-col border-r border-border bg-card md:static"
+      class="absolute inset-y-0 left-0 z-30 h-full w-80 shrink-0 border-r border-border bg-card md:relative"
     >
-      <header class="flex shrink-0 items-start justify-between gap-2 border-b border-border bg-muted px-3 py-2.5">
-        <div class="min-w-0">
-          <h2 class="text-sm font-semibold">{{ title }}</h2>
-          <p v-if="description" class="text-xs text-muted-foreground">{{ description }}</p>
-        </div>
-        <button
-          type="button"
-          class="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          title="Close sidebar"
-          data-testid="sidebar-close"
-          @click="close"
-        >
-          <X class="size-4" aria-hidden="true" />
-        </button>
-      </header>
+      <div class="absolute inset-y-0 right-0 flex w-80 flex-col">
+        <header class="flex shrink-0 items-start justify-between gap-2 border-b border-border bg-muted px-3 py-2.5">
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold">{{ title }}</h2>
+            <p v-if="description" class="text-xs text-muted-foreground">{{ description }}</p>
+          </div>
+          <button
+            type="button"
+            class="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            title="Close sidebar"
+            data-testid="sidebar-close"
+            @click="close"
+          >
+            <X class="size-4" aria-hidden="true" />
+          </button>
+        </header>
 
-      <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-        <slot />
+        <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+          <slot />
+        </div>
       </div>
     </aside>
   </Transition>
