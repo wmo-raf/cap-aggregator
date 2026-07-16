@@ -141,6 +141,37 @@ describe("TableView", () => {
     expect(headers.map((h) => h.text())).toEqual(["Severe"]);
   });
 
+  it("shows the applied date range in a header bar with the total and grouping control", async () => {
+    stubFetch([feature(1)]);
+
+    const { wrapper } = await mountView("/table?from=2026-06-01&to=2026-06-30");
+    await flushPromises();
+
+    const header = wrapper.find('[data-testid="table-header"]');
+    expect(header.exists()).toBe(true);
+    expect(header.find('[data-testid="table-total"]').text()).toContain("1 alert");
+    expect(header.find('[data-testid="grouping-select"]').exists()).toBe(true);
+
+    const rangeLabel = header.find('[data-testid="table-range"]').text();
+    expect(rangeLabel).toContain("Jun");
+    expect(rangeLabel).toContain("2026");
+    expect(rangeLabel).toContain("30");
+  });
+
+  it("keeps the header bar visible when loading fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve({}) })),
+    );
+
+    const { wrapper } = await mountView();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="table-header"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="table-total"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain("Could not load alerts");
+  });
+
   it("reads the grouping from a deep-link URL", async () => {
     stubFetch([feature(1)]);
 

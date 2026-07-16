@@ -35,6 +35,21 @@ export function rangeFromQuery(query: Record<string, unknown>, now: Date = new D
   return defaultRange(now);
 }
 
+/** A YYYY-MM-DD string as a local date — via parts, so no UTC-midnight drift. */
+function localDate(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/** Compact display of the applied range for the table header, e.g.
+ * "9 – 16 Jul 2026"; a single-day range collapses to one date. */
+export function formatDateRange(range: DateRange, locale?: string): string {
+  const formatter = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" });
+  return range.from === range.to
+    ? formatter.format(localDate(range.from))
+    : formatter.formatRange(localDate(range.from), localDate(range.to));
+}
+
 /** /api/search/ params for the table: range + facets + pagination + the
  * server ordering matching the grouping, so grouped rows stay contiguous
  * across pages ("effective" rides the API's newest-first default). */

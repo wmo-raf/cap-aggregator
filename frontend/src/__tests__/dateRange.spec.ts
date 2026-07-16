@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { defaultRange, rangeFromQuery, rangeToQuery, tableSearchParams } from "@/lib/dateRange";
+import { defaultRange, formatDateRange, rangeFromQuery, rangeToQuery, tableSearchParams } from "@/lib/dateRange";
 import { emptyFilters } from "@/lib/filters";
 
 describe("table date range", () => {
@@ -35,6 +35,25 @@ describe("table date range", () => {
     expect(params.get("severity")).toBe("Severe");
     expect(params.get("limit")).toBe("50");
     expect(params.get("offset")).toBe("50");
+  });
+
+  it("formats the applied range compactly for the header", () => {
+    const label = formatDateRange({ from: "2026-07-09", to: "2026-07-16" }, "en-GB");
+
+    expect(label).toContain("9");
+    expect(label).toContain("16");
+    expect(label).toContain("Jul 2026");
+  });
+
+  it("collapses a single-day range to one date", () => {
+    expect(formatDateRange({ from: "2026-07-16", to: "2026-07-16" }, "en-GB")).toBe("16 Jul 2026");
+  });
+
+  it("shows both years when the range crosses years", () => {
+    const label = formatDateRange({ from: "2025-12-20", to: "2026-01-05" }, "en-GB");
+
+    expect(label).toContain("2025");
+    expect(label).toContain("2026");
   });
 
   it("orders by the active grouping so grouped rows stay contiguous across pages", () => {
