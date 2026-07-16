@@ -7,6 +7,11 @@ import { type Ref, readonly, ref } from "vue";
  * active view's item toggles it. Closing on one view never affects another.
  * First visit defaults: open on desktop, closed on small screens.
  */
+/** Push-transition duration — keep in sync with the duration-200 classes in
+ * ExplorerSidebar.vue. Views with resize-sensitive content (the map) settle
+ * once after this instead of tracking the animation frame-by-frame. */
+export const SIDEBAR_TRANSITION_MS = 200;
+
 function defaultOpen(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
   return window.matchMedia("(min-width: 768px)").matches;

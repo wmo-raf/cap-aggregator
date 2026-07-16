@@ -9,6 +9,7 @@ import AlertSidebar from "@/components/AlertSidebar.vue";
 import BasemapSwitcher from "@/components/BasemapSwitcher.vue";
 import SeverityLegend from "@/components/SeverityLegend.vue";
 import TimeControl from "@/components/TimeControl.vue";
+import { SIDEBAR_TRANSITION_MS, useSidebar } from "@/composables/useSidebar";
 import { useTheme } from "@/composables/useTheme";
 import { ALERTS_SOURCE_ID, alertLayers } from "@/lib/alertLayers";
 import { type AlertListItem, fetchAlertList, fetchAuthorities } from "@/lib/api";
@@ -34,6 +35,17 @@ let map: maplibregl.Map | null = null;
 const route = useRoute();
 const router = useRouter();
 const { isDark } = useTheme();
+
+// Resize the canvas once after the sidebar push settles (and on real window
+// resizes) instead of MapLibre's trackResize: its ResizeObserver fires every
+// animation frame, and the per-frame canvas reallocations flicker.
+const sidebarOpen = useSidebar().isOpen("map");
+let settleTimer: ReturnType<typeof setTimeout> | undefined;
+watch(sidebarOpen, () => {
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(() => map?.resize(), SIDEBAR_TRANSITION_MS + 50);
+});
+const onWindowResize = () => map?.resize();
 
 // null until the user picks explicitly; before that the basemap follows the theme
 const manualBasemap = ref<BasemapId | null>(null);
@@ -141,7 +153,9 @@ onMounted(async () => {
     style: basemapStyleUrl(activeBasemap.value),
     center: INITIAL_CENTER,
     zoom: INITIAL_ZOOM,
+    trackResize: false, // we settle once after the sidebar push instead
   });
+  window.addEventListener("resize", onWindowResize);
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
   map.on("style.load", () => addAlertLayers(map!));
   map.on("moveend", () => refreshList());
@@ -184,6 +198,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearTimeout(refreshTimer);
+  clearTimeout(settleTimer);
+  window.removeEventListener("resize", onWindowResize);
   map?.remove();
   map = null;
 });
