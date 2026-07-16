@@ -12,7 +12,7 @@ import TimeControl from "@/components/TimeControl.vue";
 import { SIDEBAR_TRANSITION_MS, useSidebar } from "@/composables/useSidebar";
 import { useTheme } from "@/composables/useTheme";
 import { ALERTS_SOURCE_ID, alertLayers } from "@/lib/alertLayers";
-import { type AlertListItem, fetchAlertList, fetchAuthorities } from "@/lib/api";
+import { type AlertListItem, fetchAlertList, fetchAlertWindows, fetchAuthorities } from "@/lib/api";
 import { type BasemapId, basemapStyleUrl, resolveBasemapId } from "@/lib/basemap";
 import { alertTileUrlTemplate } from "@/lib/config";
 import {
@@ -54,6 +54,9 @@ const activeBasemap = computed(() => resolveBasemapId(manualBasemap.value, isDar
 // --- Filters + selected time: URL is the source of truth (deep-linkable) ---
 const filters = ref<AlertFilters>(filtersFromRouteQuery(route.query));
 const selectedTime = ref<Date | null>(timeFromQuery(route.query));
+
+// Active + upcoming alert windows (global) — the time control's Live chips
+const timeWindows = ref<{ effective: string | null; expires: string | null }[]>([]);
 
 function tileUrl(): string {
   const params = new URLSearchParams(tileQueryFromFilters(filters.value));
@@ -186,6 +189,12 @@ onMounted(async () => {
   refreshGlobalCount();
 
   try {
+    timeWindows.value = await fetchAlertWindows();
+  } catch {
+    timeWindows.value = []; // chips degrade to just "Now"
+  }
+
+  try {
     const seen = new Set<string>();
     countries.value = (await fetchAuthorities())
       .filter((a) => a.country && !seen.has(a.country) && seen.add(a.country))
@@ -239,8 +248,8 @@ onUnmounted(() => {
           <SeverityLegend />
           <BasemapSwitcher :active="activeBasemap" @select="manualBasemap = $event" />
         </div>
-        <div class="absolute bottom-6 left-1/2 w-[min(26rem,calc(100vw-2rem))] -translate-x-1/2">
-          <TimeControl :model-value="selectedTime" @update:model-value="selectedTime = $event" />
+        <div class="absolute bottom-6 left-1/2 w-max min-w-[min(26rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] -translate-x-1/2">
+          <TimeControl :model-value="selectedTime" :windows="timeWindows" @update:model-value="selectedTime = $event" />
         </div>
       </div>
     </div>

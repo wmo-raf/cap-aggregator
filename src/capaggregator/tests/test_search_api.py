@@ -141,6 +141,43 @@ class SeverityOrderingTests(TestCase):
         )
 
 
+class UpcomingModeTests(TestCase):
+    """upcoming=true returns the active + future union (non-cancelled,
+    expires > now) — what the explorer time control derives its data-driven
+    chips from."""
+
+    def setUp(self):
+        self.authority = create_source_authority()
+        now = timezone.now()
+
+        def chain(effective, expires, headline, **kwargs):
+            return create_event_chain(
+                self.authority,
+                infos=[{"effective": effective, "expires": expires, "headline": headline}],
+                **kwargs,
+            )
+
+        chain(now - timedelta(hours=2), now + timedelta(hours=4), "Active now")
+        chain(now + timedelta(days=2), now + timedelta(days=3), "Future storm")
+        chain(now - timedelta(days=2), now - timedelta(days=1), "Already expired")
+        chain(now - timedelta(hours=1), now + timedelta(hours=1), "Cancelled", is_cancelled=True)
+
+    def headlines(self, **params):
+        response = self.client.get(reverse("alert_search"), params)
+        self.assertEqual(response.status_code, 200)
+        return {f["properties"]["headline"] for f in response.json()["results"]["features"]}
+
+    def test_upcoming_returns_active_and_future_but_not_expired_or_cancelled(self):
+        self.assertEqual(self.headlines(upcoming="true"), {"Active now", "Future storm"})
+
+    def test_default_active_mode_is_unchanged(self):
+        headlines = self.headlines()
+
+        self.assertIn("Active now", headlines)
+        self.assertNotIn("Future storm", headlines)  # future stays out of active-now
+        self.assertNotIn("Already expired", headlines)
+
+
 class CountryOrderingTests(TestCase):
     """order=country sorts by the issuing authority's country, then authority
     name, then newest-first — so Country > Authority grouped, paginated lists

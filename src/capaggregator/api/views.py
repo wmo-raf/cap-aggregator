@@ -58,6 +58,7 @@ def _parse_bound(value, *, end=False):
         OpenApiParameter("effective_from", str, description="Range mode: alerts effective on/after this ISO datetime or date."),
         OpenApiParameter("effective_to", str, description="Range mode: alerts effective up to this ISO datetime (or through this date). Range mode includes expired alerts."),
         OpenApiParameter("t", str, description="Point-in-time: alerts active at this instant (default: now when active=true)."),
+        OpenApiParameter("upcoming", str, description="'true' returns the active + future union (non-cancelled, expires > now) — e.g. for deriving time-selector options."),
         OpenApiParameter("order", str, description="'severity' ranks worst-first (Extreme→Unknown, newest within); 'country' sorts by issuing authority's country, then authority name, newest within; default is newest-first."),
     ]
 )
@@ -88,11 +89,14 @@ class AlertSearchView(ListAPIView):
         if event := params.get("event"):
             qs = qs.filter(event__icontains=event)
 
-        # Time: effective-date range (archive — includes expired), else
-        # point-in-time t, else the currently-active default
+        # Time: effective-date range (archive — includes expired), else the
+        # active + future union (upcoming), else point-in-time t, else the
+        # currently-active default
         effective_from = params.get("effective_from")
         effective_to = params.get("effective_to")
-        if effective_from or effective_to:
+        if params.get("upcoming", "").lower() == "true":
+            qs = qs.filter(is_cancelled=False, expires__gt=timezone.now())
+        elif effective_from or effective_to:
             if effective_from:
                 bound, _ = _parse_bound(effective_from)
                 if bound:

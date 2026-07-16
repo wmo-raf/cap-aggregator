@@ -80,6 +80,22 @@ export async function fetchAlertTable(
   };
 }
 
+/** Effective/expires windows of all active + upcoming alerts (global, not
+ * viewport-scoped) — what the time control derives its Live chips from. */
+export async function fetchAlertWindows(): Promise<{ effective: string | null; expires: string | null }[]> {
+  const response = await fetch("/api/search/?upcoming=true&limit=500", {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`alert windows request failed: ${response.status}`);
+  const page = (await response.json()) as {
+    results: { features: { properties: { effective: string | null; expires: string | null } }[] };
+  };
+  return page.results.features.map((f) => ({
+    effective: f.properties.effective,
+    expires: f.properties.expires,
+  }));
+}
+
 /** All active authorities, following DRF pagination if there are many. */
 export async function fetchAuthorities(): Promise<Authority[]> {
   const authorities: Authority[] = [];

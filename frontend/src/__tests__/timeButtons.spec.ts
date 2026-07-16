@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeAt, deriveTimeButtons } from "@/lib/homeTime";
+import { activeAt, deriveTimeButtons } from "@/lib/timeButtons";
 
 // Local-time constructions keep these assertions timezone-independent.
 const now = new Date(2026, 6, 15, 9, 0, 0); // Wed 15 July 2026, 09:00 local

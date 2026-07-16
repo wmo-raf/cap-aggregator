@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { ALERTS_SOURCE_ID, alertLayers } from "@/lib/alertLayers";
 import { basemapStyleUrl, resolveBasemapId } from "@/lib/basemap";
 import { alertTileUrlTemplate } from "@/lib/config";
-import { activeAt, deriveTimeButtons, type TimeButton } from "@/lib/homeTime";
+import { activeAt, deriveTimeButtons, type TimeButton } from "@/lib/timeButtons";
 import { buildPopupContent, dedupeAlertFeatures } from "@/lib/popup";
 import { roundToBucket } from "@/lib/timeControl";
 

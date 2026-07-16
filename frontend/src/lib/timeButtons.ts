@@ -1,5 +1,5 @@
 /**
- * Homepage time selector: data-driven buttons derived from the alert list's
+ * Data-driven time-selector buttons (homepage map + explorer Live mode) derived from the alert list's
  * data-effective/data-expires attributes, in the viewer's timezone.
  *   Now (always, t = null = live) · +24h (if active then) · one button per
  *   day 2-7 at local noon (only days with activity) · Future (first alert
