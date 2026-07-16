@@ -1,6 +1,7 @@
 """Base settings"""
 
 import os
+import sys
 from pathlib import Path
 
 import dj_database_url
@@ -200,6 +201,12 @@ CACHES = {
         "VERSION": VERSION,
     },
 }
+
+# Test runs share the dev Redis; an isolated in-memory cache keeps their
+# cache.clear()/get_or_set from bleeding cross-database values into the
+# running dev site (and vice versa).
+if len(sys.argv) > 1 and sys.argv[1] == "test":
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 # --- Celery ---
 CELERY_BROKER_URL = REDIS_URL
