@@ -132,20 +132,20 @@ describe("groupByEffectiveDay", () => {
 });
 
 describe("table grouping URL param", () => {
-  it("defaults to country grouping when the param is absent or unknown", () => {
-    expect(groupingFromQuery({})).toBe("country");
-    expect(groupingFromQuery({ group: "bizarre" })).toBe("country");
-    expect(groupingFromQuery({ group: ["severity", "effective"] })).toBe("country");
+  it("defaults to effective-time grouping when the param is absent or unknown", () => {
+    expect(groupingFromQuery({})).toBe("effective");
+    expect(groupingFromQuery({ group: "bizarre" })).toBe("effective");
+    expect(groupingFromQuery({ group: ["severity", "country"] })).toBe("effective");
   });
 
-  it("accepts the severity and effective groupings", () => {
+  it("accepts the country and severity groupings", () => {
+    expect(groupingFromQuery({ group: "country" })).toBe("country");
     expect(groupingFromQuery({ group: "severity" })).toBe("severity");
-    expect(groupingFromQuery({ group: "effective" })).toBe("effective");
   });
 
   it("round-trips through the URL query, omitting the default", () => {
-    expect(groupingToQuery("country")).toEqual({});
+    expect(groupingToQuery("effective")).toEqual({});
     expect(groupingToQuery("severity")).toEqual({ group: "severity" });
-    expect(groupingFromQuery(groupingToQuery("effective"))).toBe("effective");
+    expect(groupingFromQuery(groupingToQuery("country"))).toBe("country");
   });
 });

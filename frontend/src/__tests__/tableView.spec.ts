@@ -83,7 +83,7 @@ describe("TableView", () => {
     expect(wrapper.text()).toContain("Alert 1");
   });
 
-  it("groups by country then authority by default, without counts on headers", async () => {
+  it("groups by country then authority when selected, without counts on headers", async () => {
     const fetchMock = stubFetch([
       feature(1),
       feature(2, {
@@ -94,7 +94,7 @@ describe("TableView", () => {
       }),
     ]);
 
-    const { wrapper } = await mountView();
+    const { wrapper } = await mountView("/table?group=country");
     await flushPromises();
 
     const searchUrl = String(
@@ -112,7 +112,7 @@ describe("TableView", () => {
   it("collapses a country group, hiding its authorities and alerts", async () => {
     stubFetch([feature(1), feature(2)]);
 
-    const { wrapper } = await mountView();
+    const { wrapper } = await mountView("/table?group=country");
     await flushPromises();
 
     const kenya = wrapper.find('[data-testid="group-header"][data-level="0"] button');
@@ -172,14 +172,15 @@ describe("TableView", () => {
     expect(wrapper.text()).toContain("Could not load alerts");
   });
 
-  it("reads the grouping from a deep-link URL", async () => {
+  it("groups by effective calendar day by default", async () => {
     stubFetch([feature(1)]);
 
-    const { wrapper } = await mountView("/table?group=effective");
+    const { wrapper, router } = await mountView();
     await flushPromises();
 
     const select = wrapper.find('[data-testid="grouping-select"]');
     expect((select.element as HTMLSelectElement).value).toBe("effective");
+    expect(router.currentRoute.value.query.group).toBeUndefined(); // default stays out of the URL
     const headers = wrapper.findAll('[data-testid="group-header"]');
     expect(headers).toHaveLength(1);
     expect(headers[0].text()).toContain("2026"); // the effective calendar day

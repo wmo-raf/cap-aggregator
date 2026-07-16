@@ -59,10 +59,10 @@ describe("table date range", () => {
   it("orders by the active grouping so grouped rows stay contiguous across pages", () => {
     const range = { from: "2026-06-01", to: "2026-06-30" };
 
-    expect(tableSearchParams(emptyFilters(), range, 0).get("order")).toBe("country"); // default grouping
+    // the default (effective) grouping rides the API's newest-first default
+    expect(tableSearchParams(emptyFilters(), range, 0).get("order")).toBeNull();
+    expect(tableSearchParams(emptyFilters(), range, 0, "effective").get("order")).toBeNull();
     expect(tableSearchParams(emptyFilters(), range, 0, "country").get("order")).toBe("country");
     expect(tableSearchParams(emptyFilters(), range, 0, "severity").get("order")).toBe("severity");
-    // effective grouping rides the API's newest-first default
-    expect(tableSearchParams(emptyFilters(), range, 0, "effective").get("order")).toBeNull();
   });
 });

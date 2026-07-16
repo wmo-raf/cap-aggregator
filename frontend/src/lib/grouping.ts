@@ -3,7 +3,7 @@ import { SEVERITIES, SEVERITY_FALLBACK_COLOR } from "@/lib/severity";
 /** The table's grouping dimension; `group` URL param (omitted at default). */
 export type TableGrouping = "country" | "severity" | "effective";
 
-export const DEFAULT_GROUPING: TableGrouping = "country";
+export const DEFAULT_GROUPING: TableGrouping = "effective";
 
 const GROUPINGS: TableGrouping[] = ["country", "severity", "effective"];
 

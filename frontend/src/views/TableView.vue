@@ -200,9 +200,9 @@ onMounted(async () => {
               class="rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
               data-testid="grouping-select"
             >
+              <option value="effective">Effective time</option>
               <option value="country">Country &amp; authority</option>
               <option value="severity">Severity</option>
-              <option value="effective">Effective time</option>
             </select>
           </label>
         </header>
