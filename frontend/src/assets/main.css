@@ -156,7 +156,8 @@
 
   /* Sidebar sections (explorer filter/list panels) — distinct bordered blocks */
   .sidebar-panel {
-    @apply overflow-hidden rounded-lg border border-border/80 bg-card;
+    /* shrink-0: panels must never squeeze each other — the sidebar body scrolls instead */
+    @apply shrink-0 overflow-hidden rounded-lg border border-border/80 bg-card;
   }
   .sidebar-panel__header {
     @apply flex items-center justify-between border-b border-border/60 bg-muted px-3 py-2;

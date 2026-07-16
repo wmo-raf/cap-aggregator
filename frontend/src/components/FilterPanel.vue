@@ -61,7 +61,7 @@ const isActive = computed(() => hasActiveFilters(props.modelValue));
           </span>
           <ChevronDown class="size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
-        <ul class="flex flex-col gap-0.5 px-2.5 pt-0.5 pb-2">
+        <ul class="flex max-h-56 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5 pb-2">
           <li v-for="option in facet.options" :key="option.value">
             <label class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
               <input
