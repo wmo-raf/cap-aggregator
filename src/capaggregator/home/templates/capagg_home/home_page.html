@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load wagtailimages_tags %}
+{% load django_vite wagtailimages_tags %}
 
 {% block title %}{{ page.title }} — CAP Aggregator{% endblock %}
 
@@ -81,20 +81,23 @@
         {% if alert_groups %}
             <section aria-label="Active alerts by authority">
                 <div class="mb-3 flex items-baseline justify-between">
-                    <h2 class="text-lg font-semibold">Active alerts</h2>
+                    <h2 class="text-lg font-semibold">
+                        Active alerts
+                        <span class="text-sm font-normal text-muted-foreground" data-time-label></span>
+                    </h2>
                     <a href="{% url 'explorer' %}table"
                        class="text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground">Browse the archive</a>
                 </div>
-                <div class="flex flex-col gap-4 lg:flex-row">
-                    <aside class="w-full shrink-0 lg:sticky lg:top-4 lg:w-56 lg:self-start">
-                        <section class="sidebar-panel" aria-label="Filter active alerts">
-                            <header class="sidebar-panel__header">
-                                <h3>Severity</h3>
-                            </header>
-                            <ul class="flex flex-col gap-0.5 p-3">
+                <div class="flex flex-col gap-4 lg:h-[32rem] lg:flex-row">
+                    <div class="relative h-80 shrink-0 overflow-hidden rounded-xl border border-border lg:h-auto lg:min-w-0 lg:flex-[3]">
+                        <div id="capagg-home-map" class="h-full w-full"></div>
+                        <section class="absolute top-3 left-3 z-10 rounded-lg border border-border bg-card/95 px-3 py-2 shadow-sm backdrop-blur"
+                                 aria-label="Filter alerts by severity">
+                            <h3 class="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Severity</h3>
+                            <ul class="flex flex-col gap-0.5">
                                 {% for level in severity_levels %}
                                     <li>
-                                        <label class="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                                        <label class="flex items-center gap-2 rounded px-0.5 py-0.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
                                             <input type="checkbox" class="size-3.5 accent-primary" value="{{ level|lower }}" data-severity-filter>
                                             <span class="severity-dot severity-dot--{{ level|lower }}" aria-hidden="true"></span>
                                             {{ level }}
@@ -103,46 +106,61 @@
                                 {% endfor %}
                             </ul>
                         </section>
-                    </aside>
+                        <div class="absolute bottom-6 left-1/2 z-10 flex max-w-[90%] -translate-x-1/2 flex-wrap justify-center gap-1 rounded-lg border border-border bg-card/95 p-1 shadow-sm backdrop-blur"
+                             data-time-control role="group" aria-label="View alerts at a time"></div>
+                    </div>
 
-                    <div class="flex min-w-0 flex-1 flex-col gap-5">
-                        {% for group in alert_groups %}
-                            <div data-alert-group data-total="{{ group.alerts|length }}">
-                                <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold">
-                                    <span aria-hidden="true">{{ group.flag }}</span>
-                                    {{ group.country_name }}
-                                    <span class="font-normal text-muted-foreground">· {{ group.authority.name }}</span>
-                                    <span class="text-xs font-normal text-muted-foreground" data-group-count>{{ group.alerts|length }}</span>
-                                </h3>
-                                <ul class="flex flex-col gap-3">
-                                    {% for alert in group.alerts %}
-                                        <li data-severity="{{ alert.severity|lower }}"
-                                            {% if forloop.counter > visible_per_authority %}data-extra class="hidden"{% endif %}>
-                                            <a href="{% url 'alert_detail' alert.chain_id %}"
-                                               class="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent">
-                                                <span class="severity-badge severity-badge--{{ alert.severity|lower }}">{{ alert.severity }}</span>
-                                                <span class="min-w-0">
-                                                    <span class="block truncate text-sm font-medium">{{ alert.headline|default:alert.event }}</span>
-                                                    <span class="block text-xs text-muted-foreground">{{ alert.event }} · {{ alert.effective }}</span>
-                                                </span>
-                                            </a>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                                {% if group.extra_count %}
-                                    <button type="button"
-                                            class="mt-2 text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
-                                            data-expand-alerts
-                                            data-more-label="View {{ group.extra_count }} more"
-                                            aria-expanded="false">
-                                        View {{ group.extra_count }} more
-                                    </button>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
+                    <div class="min-w-0 lg:h-full lg:flex-[2]">
+                        <div class="flex flex-col gap-5 lg:h-full lg:overflow-y-auto lg:pr-1">
+                            <p class="hidden text-sm text-muted-foreground" data-alerts-empty>
+                                No alerts match the selected time and severity.
+                            </p>
+                            {% for group in alert_groups %}
+                                <div data-alert-group data-total="{{ group.active_count }}"
+                                     {% if not group.active_count %}class="hidden"{% endif %}>
+                                    <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold">
+                                        <span aria-hidden="true">{{ group.flag }}</span>
+                                        {{ group.country_name }}
+                                        <span class="font-normal text-muted-foreground">· {{ group.authority.name }}</span>
+                                        <span class="text-xs font-normal text-muted-foreground" data-group-count>{{ group.active_count }}</span>
+                                    </h3>
+                                    <ul class="flex flex-col gap-3">
+                                        {% for entry in group.alerts %}
+                                            <li data-severity="{{ entry.alert.severity|lower }}"
+                                                data-effective="{{ entry.alert.effective|date:'c' }}"
+                                                data-expires="{{ entry.alert.expires|date:'c' }}"
+                                                {% if entry.upcoming %}data-upcoming class="hidden"{% elif entry.extra %}data-extra class="hidden"{% endif %}>
+                                                <a href="{% url 'alert_detail' entry.alert.chain_id %}"
+                                                   class="flex items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent">
+                                                    <span class="severity-badge severity-badge--{{ entry.alert.severity|lower }}">{{ entry.alert.severity }}</span>
+                                                    <span class="min-w-0">
+                                                        <span class="block truncate text-sm font-medium">{{ entry.alert.headline|default:entry.alert.event }}</span>
+                                                        <span class="block text-xs text-muted-foreground">{{ entry.alert.event }} · {{ entry.alert.effective }}</span>
+                                                    </span>
+                                                </a>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% if group.extra_count %}
+                                        <button type="button"
+                                                class="mt-2 text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+                                                data-expand-alerts
+                                                data-more-label="View {{ group.extra_count }} more"
+                                                aria-expanded="false">
+                                            View {{ group.extra_count }} more
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
             </section>
         {% endif %}
     </div>
+    {{ capagg_config|json_script:"capagg-config" }}
+{% endblock %}
+
+{% block extra_js %}
+    {% vite_asset 'src/home.ts' %}
 {% endblock %}

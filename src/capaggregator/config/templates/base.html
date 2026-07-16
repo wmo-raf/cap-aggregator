@@ -13,7 +13,7 @@
 </head>
 <body class="flex min-h-dvh flex-col bg-background text-foreground">
 <header class="border-b border-border bg-card">
-    <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
+    <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <a href="/" class="flex items-center gap-2" title="CAP Aggregator home">
             <img src="{% static 'images/cap-agg-logo.png' %}" alt="CAP Aggregator" class="h-9 w-auto">
         </a>
@@ -29,12 +29,12 @@
     </div>
 </header>
 
-<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+<main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
     {% block content %}{% endblock %}
 </main>
 
 <footer class="border-t border-border bg-card">
-    <div class="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+    <div class="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <p>CAP Aggregator — aggregated Common Alerting Protocol feeds from national alerting authorities.</p>
         <nav class="flex gap-4" aria-label="Footer">
             <a href="{% url 'explorer' %}" class="transition-colors hover:text-foreground">Explorer</a>

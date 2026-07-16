@@ -165,6 +165,14 @@
     @apply h-72 w-full rounded-lg border border-border;
   }
 
+  /* Homepage map time selector chips ([aria-pressed] = selected instant) */
+  .capagg-time-chip {
+    @apply rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground;
+  }
+  .capagg-time-chip[aria-pressed="true"] {
+    @apply bg-primary text-primary-foreground;
+  }
+
   /* Sidebar sections (explorer filter/list panels) — distinct bordered blocks */
   .sidebar-panel {
     /* shrink-0: panels must never squeeze each other — the sidebar body scrolls instead */

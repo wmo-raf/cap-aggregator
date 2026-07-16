@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db import models
 from django.utils import timezone
@@ -122,9 +123,12 @@ class HomePage(Page):
 
         context["stats"] = cache.get_or_set(STATS_CACHE_KEY, compute_stats, STATS_CACHE_TTL)
 
-        # All active alerts grouped per authority, worst severity first
+        # Active + upcoming alerts grouped per authority, worst severity first.
+        # Upcoming items ship hidden (data-upcoming) with data-effective/expires
+        # attributes; the homepage map JS toggles them for the selected time.
+        listed = ResolvedAlert.objects.filter(is_cancelled=False, expires__gt=now)
         groups = {}
-        for alert in active.select_related("authority").order_by("-effective"):
+        for alert in listed.select_related("authority").order_by("-effective"):
             group = groups.get(alert.authority_id)
             if group is None:
                 code = str(alert.authority.country)
@@ -136,13 +140,20 @@ class HomePage(Page):
                     "alerts": [],
                     "worst_rank": _severity_rank(alert.severity),
                 }
-            group["alerts"].append(alert)
+            upcoming = alert.effective is not None and alert.effective > now
+            group["alerts"].append({"alert": alert, "upcoming": upcoming, "extra": False})
             group["worst_rank"] = min(group["worst_rank"], _severity_rank(alert.severity))
         for group in groups.values():
-            group["extra_count"] = max(0, len(group["alerts"]) - VISIBLE_ALERTS_PER_AUTHORITY)
+            current = [entry for entry in group["alerts"] if not entry["upcoming"]]
+            for position, entry in enumerate(current):
+                entry["extra"] = position >= VISIBLE_ALERTS_PER_AUTHORITY
+            group["active_count"] = len(current)
+            group["extra_count"] = max(0, len(current) - VISIBLE_ALERTS_PER_AUTHORITY)
         context["alert_groups"] = sorted(
             groups.values(), key=lambda g: (g["worst_rank"], g["country_name"], g["authority"].name)
         )
         context["visible_per_authority"] = VISIBLE_ALERTS_PER_AUTHORITY
         context["severity_levels"] = SEVERITY_ORDER
+        # json_script the homepage map JS boots from (frontend/src/lib/config.ts)
+        context["capagg_config"] = {"tilesBase": settings.CAPAGG_TILES_BASE}
         return context
