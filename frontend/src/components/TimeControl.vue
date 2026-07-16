@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pause, Play } from "lucide-vue-next";
+import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-vue-next";
 import { computed, onUnmounted, ref, watch } from "vue";
 
 import { deriveTimeButtons, type TimeWindow } from "@/lib/timeButtons";
@@ -35,10 +35,20 @@ function pickChip(t: Date | null) {
   emit("update:modelValue", t && roundToBucket(t));
 }
 
-// --- Historical mode: past-capped picker + replay ---
-/** Animation cadence: one hour of alert time per tick. */
-const STEP_MINUTES = 60;
+// --- Historical mode: past-capped picker, stepping and replay ---
+/** One stride for the ◀/▶ buttons and the replay animation alike. */
+const STEP_HOURS_OPTIONS = [1, 3, 6, 9, 12, 24];
+const stepHours = ref(1);
 const TICK_MS = 1200;
+
+/** Manual step; forward past the present snaps back to live (null), the
+ * same boundary rule the replay uses. */
+function step(direction: -1 | 1) {
+  stop();
+  const from = props.modelValue ?? new Date();
+  const next = nextStep(from, direction * stepHours.value * 60);
+  emit("update:modelValue", next.getTime() >= Date.now() ? null : next);
+}
 
 const playing = ref(false);
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -76,7 +86,7 @@ function togglePlay() {
   }
   timer = setInterval(() => {
     const current = props.modelValue ?? new Date();
-    const next = nextStep(current, STEP_MINUTES);
+    const next = nextStep(current, stepHours.value * 60);
     if (next.getTime() >= Date.now()) {
       stop();
       emit("update:modelValue", null); // caught up — back to live
@@ -153,13 +163,23 @@ onUnmounted(stop);
         <button
           type="button"
           class="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          :title="playing ? 'Pause' : 'Replay the past 24h (1h per step)'"
+          :title="playing ? 'Pause' : 'Replay towards now'"
           :aria-pressed="playing"
           data-testid="play-toggle"
           @click="togglePlay"
         >
           <Pause v-if="playing" class="size-4" aria-hidden="true" />
           <Play v-else class="size-4" aria-hidden="true" />
+        </button>
+
+        <button
+          type="button"
+          class="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          :title="`Back ${stepHours}h`"
+          data-testid="step-back"
+          @click="step(-1)"
+        >
+          <ChevronLeft class="size-4" aria-hidden="true" />
         </button>
 
         <input
@@ -170,6 +190,25 @@ onUnmounted(stop);
           aria-label="View alerts at a past date and time"
           @change="onInput"
         />
+
+        <button
+          type="button"
+          class="rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          :title="`Forward ${stepHours}h`"
+          data-testid="step-forward"
+          @click="step(1)"
+        >
+          <ChevronRight class="size-4" aria-hidden="true" />
+        </button>
+
+        <select
+          v-model.number="stepHours"
+          class="rounded-md border border-border bg-background px-1.5 py-1 text-xs text-foreground"
+          aria-label="Step size in hours"
+          data-testid="step-hours"
+        >
+          <option v-for="hours in STEP_HOURS_OPTIONS" :key="hours" :value="hours">{{ hours }}h</option>
+        </select>
       </template>
     </div>
   </div>

@@ -64,4 +64,42 @@ describe("TimeControl modes", () => {
     expect(wrapper.find('[data-testid="time-mode-historical"]').attributes("aria-pressed")).toBe("true");
     expect(wrapper.find('input[type="datetime-local"]').exists()).toBe(true);
   });
+
+  it("steps backward by the selected stride", async () => {
+    const t = new Date(Date.now() - 48 * HOUR);
+    const wrapper = mountControl(t);
+
+    await wrapper.find('[data-testid="step-back"]').trigger("click");
+    let emitted = wrapper.emitted("update:modelValue")!;
+    expect((emitted[0][0] as Date).getTime()).toBe(t.getTime() - 1 * HOUR); // default 1h
+
+    await wrapper.find('[data-testid="step-hours"]').setValue("6");
+    await wrapper.find('[data-testid="step-back"]').trigger("click");
+    emitted = wrapper.emitted("update:modelValue")!;
+    expect((emitted[1][0] as Date).getTime()).toBe(t.getTime() - 6 * HOUR);
+  });
+
+  it("steps forward by the stride, snapping to Live at the present", async () => {
+    const t = new Date(Date.now() - 48 * HOUR);
+    const wrapper = mountControl(t);
+
+    await wrapper.find('[data-testid="step-forward"]').trigger("click");
+    const emitted = wrapper.emitted("update:modelValue")!;
+    expect((emitted[0][0] as Date).getTime()).toBe(t.getTime() + 1 * HOUR);
+
+    // a stride landing at/past now returns to live (null), like the replay
+    await wrapper.setProps({ modelValue: new Date(Date.now() - 0.5 * HOUR) });
+    await wrapper.find('[data-testid="step-forward"]').trigger("click");
+    expect(emitted[1]).toEqual([null]);
+  });
+
+  it("steps back from the displayed now when no date is picked yet", async () => {
+    const wrapper = mountControl();
+    await wrapper.find('[data-testid="time-mode-historical"]').trigger("click");
+
+    await wrapper.find('[data-testid="step-back"]').trigger("click");
+
+    const t = wrapper.emitted("update:modelValue")![0][0] as Date;
+    expect(Math.abs(t.getTime() - (Date.now() - 1 * HOUR))).toBeLessThan(10 * 60 * 1000);
+  });
 });
