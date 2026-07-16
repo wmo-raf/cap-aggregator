@@ -35,7 +35,15 @@ describe("table date range", () => {
     expect(params.get("severity")).toBe("Severe");
     expect(params.get("limit")).toBe("50");
     expect(params.get("offset")).toBe("50");
-    // severity-grouped rows must be globally contiguous across pages
-    expect(params.get("order")).toBe("severity");
+  });
+
+  it("orders by the active grouping so grouped rows stay contiguous across pages", () => {
+    const range = { from: "2026-06-01", to: "2026-06-30" };
+
+    expect(tableSearchParams(emptyFilters(), range, 0).get("order")).toBe("country"); // default grouping
+    expect(tableSearchParams(emptyFilters(), range, 0, "country").get("order")).toBe("country");
+    expect(tableSearchParams(emptyFilters(), range, 0, "severity").get("order")).toBe("severity");
+    // effective grouping rides the API's newest-first default
+    expect(tableSearchParams(emptyFilters(), range, 0, "effective").get("order")).toBeNull();
   });
 });

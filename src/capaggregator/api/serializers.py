@@ -21,13 +21,17 @@ class SourceAuthoritySerializer(serializers.ModelSerializer):
 
 class ResolvedAlertSerializer(GeoFeatureModelSerializer):
     authority = serializers.SlugRelatedField(slug_field="slug", read_only=True)
+    authority_name = serializers.CharField(source="authority.name", read_only=True)
+    authority_country = serializers.CharField(source="authority.country.code", read_only=True)
+    authority_country_name = serializers.CharField(source="authority.country.name", read_only=True)
     identifier = serializers.CharField(source="latest_alert.identifier", read_only=True)
 
     class Meta:
         model = ResolvedAlert
         geo_field = "centroid"
         fields = [
-            "id", "chain", "identifier", "authority", "event", "headline", "msg_type", "status",
+            "id", "chain", "identifier", "authority", "authority_name", "authority_country",
+            "authority_country_name", "event", "headline", "msg_type", "status",
             "severity", "urgency", "certainty", "categories", "countries", "languages",
             "onset", "effective", "expires", "is_cancelled",
         ]

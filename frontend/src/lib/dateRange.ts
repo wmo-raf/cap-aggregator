@@ -1,4 +1,5 @@
 import { type AlertFilters, filtersToRouteQuery } from "@/lib/filters";
+import { DEFAULT_GROUPING, type TableGrouping } from "@/lib/grouping";
 
 /** The Table's effective-date range ("issued between") — date-only strings
  * (YYYY-MM-DD); the API treats the end date as inclusive of that whole day. */
@@ -34,13 +35,20 @@ export function rangeFromQuery(query: Record<string, unknown>, now: Date = new D
   return defaultRange(now);
 }
 
-/** /api/search/ params for the table: range + facets + pagination. */
-export function tableSearchParams(filters: AlertFilters, range: DateRange, offset = 0): URLSearchParams {
+/** /api/search/ params for the table: range + facets + pagination + the
+ * server ordering matching the grouping, so grouped rows stay contiguous
+ * across pages ("effective" rides the API's newest-first default). */
+export function tableSearchParams(
+  filters: AlertFilters,
+  range: DateRange,
+  offset = 0,
+  grouping: TableGrouping = DEFAULT_GROUPING,
+): URLSearchParams {
   const params = new URLSearchParams(filtersToRouteQuery(filters));
   params.set("effective_from", range.from);
   params.set("effective_to", range.to);
   params.set("limit", String(TABLE_PAGE_SIZE));
   params.set("offset", String(offset));
-  params.set("order", "severity"); // grouped rows stay contiguous across pages
+  if (grouping !== "effective") params.set("order", grouping);
   return params;
 }
