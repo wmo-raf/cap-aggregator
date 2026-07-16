@@ -34,10 +34,10 @@
         <div>Time <span id="t-label"></span></div>
         <input type="range" id="t-slider" min="0" max="0" step="300">
         <div class="legend" style="margin-top:8px;">
-            <span><i style="background:#7a0177"></i>Extreme</span>
-            <span><i style="background:#e31a1c"></i>Severe</span>
-            <span><i style="background:#fd8d3c"></i>Moderate</span>
-            <span><i style="background:#fecc5c"></i>Minor</span>
+            <span><i style="background:#d42d41"></i>Extreme</span>
+            <span><i style="background:#f08c11"></i>Severe</span>
+            <span><i style="background:#f4cf00"></i>Moderate</span>
+            <span><i style="background:#399cc7"></i>Minor</span>
         </div>
         <div class="count">Alert polygons in view: <b id="count">–</b></div>
         <pre id="props">Click an alert to inspect its properties…</pre>
@@ -84,8 +84,8 @@
                         id: "alerts-fill", type: "fill", source: "alerts", "source-layer": "alerts",
                         paint: {
                             "fill-color": ["match", ["get", "severity"],
-                                "Extreme", "#7a0177", "Severe", "#e31a1c",
-                                "Moderate", "#fd8d3c", "Minor", "#fecc5c", "#888"],
+                                "Extreme", "#d42d41", "Severe", "#f08c11",
+                                "Moderate", "#f4cf00", "Minor", "#399cc7", "#82a8df"],
                             "fill-opacity": 0.5,
                         },
                     },
