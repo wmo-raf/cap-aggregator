@@ -1,19 +1,19 @@
 import type { ExpressionSpecification } from "maplibre-gl";
 
 /**
- * MeteoAlarm severity convention — the single source of truth for both the
- * map layer styling and the legend. Values mirror the --color-severity-*
- * design tokens in assets/main.css.
+ * The severity palette — the single source of truth for both the map layer
+ * styling and the legend. Values mirror the --color-severity-* design tokens
+ * in assets/main.css.
  */
 export const SEVERITIES = [
-  { value: "extreme", label: "Extreme", color: "#7a0177" },
-  { value: "severe", label: "Severe", color: "#e31a1c" },
-  { value: "moderate", label: "Moderate", color: "#fd8d3c" },
-  { value: "minor", label: "Minor", color: "#fecc5c" },
+  { value: "extreme", label: "Extreme", color: "#d42d41" },
+  { value: "severe", label: "Severe", color: "#f08c11" },
+  { value: "moderate", label: "Moderate", color: "#f4cf00" },
+  { value: "minor", label: "Minor", color: "#399cc7" },
 ] as const;
 
-/** Neutral fill for Unknown/absent severities — deliberately not a MeteoAlarm color. */
-export const SEVERITY_FALLBACK_COLOR = "#9ca3af";
+/** The Unknown band — also the fill for unexpected/absent severities. */
+export const SEVERITY_FALLBACK_COLOR = "#82a8df";
 
 /** Worst-first rank (0 = Extreme); unknown severities rank after Minor. */
 export function severityRank(severity: string): number {

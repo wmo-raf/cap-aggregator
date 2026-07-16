@@ -15,24 +15,22 @@ function evaluate(expression: unknown[], severity: string): string {
 
 describe("severityColorExpression", () => {
   it.each([
-    ["Extreme", "#7a0177"],
-    ["Severe", "#e31a1c"],
-    ["Moderate", "#fd8d3c"],
-    ["Minor", "#fecc5c"],
-  ])("colors %s alerts with the MeteoAlarm color %s", (severity, color) => {
+    ["Extreme", "#d42d41"],
+    ["Severe", "#f08c11"],
+    ["Moderate", "#f4cf00"],
+    ["Minor", "#399cc7"],
+  ])("colors %s alerts with the palette color %s", (severity, color) => {
     expect(evaluate(severityColorExpression(), severity)).toBe(color);
   });
 
   it("matches severities case-insensitively (CAP producers vary)", () => {
     const expression = severityColorExpression();
-    expect(evaluate(expression, "SEVERE")).toBe("#e31a1c");
-    expect(evaluate(expression, "extreme")).toBe("#7a0177");
+    expect(evaluate(expression, "SEVERE")).toBe("#f08c11");
+    expect(evaluate(expression, "extreme")).toBe("#d42d41");
   });
 
-  it("falls back to a neutral color for Unknown/absent severities", () => {
-    const fallback = evaluate(severityColorExpression(), "Unknown");
-    expect(fallback).toMatch(/^#[0-9a-f]{6}$/i);
-    const meteoalarm = ["#7a0177", "#e31a1c", "#fd8d3c", "#fecc5c"];
-    expect(meteoalarm).not.toContain(fallback.toLowerCase());
+  it("falls back to the Unknown color for unexpected/absent severities", () => {
+    expect(evaluate(severityColorExpression(), "Unknown")).toBe("#82a8df");
+    expect(evaluate(severityColorExpression(), "Bizarre")).toBe("#82a8df");
   });
 });
