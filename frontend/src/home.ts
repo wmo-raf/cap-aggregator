@@ -99,7 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
     scrollZoom: false,
     attributionControl: false, // re-added top-right, clear of the time control
   });
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
   map.addControl(new maplibregl.AttributionControl({ compact: true }), "top-right");
 
   // setStyle wipes custom sources/layers, so this runs on every style.load
