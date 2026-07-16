@@ -21,11 +21,13 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       // main: explorer SPA · public: server-rendered pages (tokens + theme
-      // toggle) · alert-detail: progressive area map on the detail page
+      // toggle) · alert-detail: progressive area map on the detail page ·
+      // home: homepage active-alerts map + time/severity filtering
       input: {
         main: "src/main.ts",
         public: "src/public.ts",
         "alert-detail": "src/alert-detail.ts",
+        home: "src/home.ts",
       },
     },
   },

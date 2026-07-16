@@ -165,6 +165,16 @@
     @apply h-72 w-full rounded-lg border border-border;
   }
 
+  /* Homepage map time selector: squared segments inside the bordered,
+   * divide-x segmented control ([aria-pressed] = selected instant). Padding
+   * tightens on narrow screens so all segments fit one row. */
+  .capagg-time-chip {
+    @apply px-1.5 py-1 text-[11px] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground sm:px-2.5 sm:text-xs;
+  }
+  .capagg-time-chip[aria-pressed="true"] {
+    @apply bg-primary text-primary-foreground;
+  }
+
   /* Sidebar sections (explorer filter/list panels) — distinct bordered blocks */
   .sidebar-panel {
     /* shrink-0: panels must never squeeze each other — the sidebar body scrolls instead */

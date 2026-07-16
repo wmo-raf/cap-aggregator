@@ -191,3 +191,54 @@ class AlertGroupTests(TestCase):
         self.assertContains(response, "Severity color legend")
         for level in ("Extreme", "Severe", "Moderate", "Minor"):
             self.assertContains(response, f"severity-dot--{level.lower()}")
+
+
+class HomeMapSectionTests(TestCase):
+    """Map + list split: the list is the server-rendered union of active and
+    upcoming alerts; client JS derives the time buttons from each item's
+    data-effective/data-expires and toggles visibility for the selected t."""
+
+    def setUp(self):
+        cache.clear()
+        install_home_page()
+        self.kenya = create_source_authority(name="Kenya Met")
+
+    def upcoming_chain(self, hours_ahead, headline="Upcoming storm"):
+        effective = timezone.now() + timedelta(hours=hours_ahead)
+        return create_event_chain(
+            self.kenya,
+            infos=[{"effective": effective, "expires": effective + timedelta(hours=6), "headline": headline}],
+        )
+
+    def test_map_shell_time_control_and_tiles_config_are_rendered(self):
+        create_event_chain(self.kenya)
+
+        content = self.client.get("/").content.decode()
+
+        self.assertIn('id="capagg-home-map"', content)
+        self.assertIn("data-time-control", content)
+        self.assertIn('id="capagg-config"', content)  # json_script the map JS boots from
+
+    def test_upcoming_alerts_are_rendered_hidden_with_time_attributes(self):
+        create_event_chain(self.kenya, infos=[{"headline": "Active now"}])
+        self.upcoming_chain(30)
+
+        content = self.client.get("/").content.decode()
+
+        self.assertIn("Upcoming storm", content)  # in the HTML for client-side time travel
+        self.assertIn("data-upcoming", content)  # ...but hidden at t=now without JS
+        self.assertIn("data-effective=", content)
+        self.assertIn("data-expires=", content)
+
+    def test_upcoming_alerts_do_not_change_stats_or_expand_counts(self):
+        create_event_chain(self.kenya, infos=[{"headline": "Active now"}])
+        for hours in (10, 20, 30):
+            self.upcoming_chain(hours, headline=f"Upcoming {hours}")
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.context["stats"]["active_alerts"], 1)  # stats stay active-only
+        group = response.context["alert_groups"][0]
+        self.assertEqual(group["active_count"], 1)
+        self.assertEqual(group["extra_count"], 0)  # "View N more" counts active alerts only
+        self.assertNotIn("data-extra", response.content.decode())
