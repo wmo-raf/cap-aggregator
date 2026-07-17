@@ -21,12 +21,17 @@ def cap_alert_xml(
     headline="Severe flooding expected",
     description="Heavy rainfall is causing flooding.",
     expires="2026-07-08T12:00:00+00:00",
+    audience="",
+    web="",
 ) -> str:
     """A schema-valid CAP 1.2 alert. Element order follows the CAP 1.2 sequence
-    (note before references; effective before expires) so it passes XSD.
+    (note before references; effective before expires; audience before effective;
+    web after instruction) so it passes XSD.
     `expires=None` omits the optional <expires> element (CAP allows that)."""
     references_el = f"    <references>{references}</references>\n" if references else ""
     expires_el = f"        <expires>{expires}</expires>\n" if expires else ""
+    audience_el = f"        <audience>{audience}</audience>\n" if audience else ""
+    web_el = f"        <web>{web}</web>\n" if web else ""
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">\n'
@@ -43,10 +48,12 @@ def cap_alert_xml(
         "        <urgency>Immediate</urgency>\n"
         "        <severity>Severe</severity>\n"
         "        <certainty>Observed</certainty>\n"
+        f"{audience_el}"
         "        <effective>2026-07-07T12:00:00+00:00</effective>\n"
         f"{expires_el}"
         f"        <headline>{headline}</headline>\n"
         f"        <description>{description}</description>\n"
+        f"{web_el}"
         "        <area>\n"
         "            <areaDesc>Nairobi</areaDesc>\n"
         "            <polygon>-1.30,36.80 -1.30,36.90 -1.20,36.90 -1.20,36.80 -1.30,36.80</polygon>\n"

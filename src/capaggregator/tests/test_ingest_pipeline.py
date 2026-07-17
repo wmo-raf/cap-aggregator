@@ -41,6 +41,26 @@ class IngestPipelineTests(TestCase):
         self.assertEqual(raw.state, "stored")
         self.assertTrue(Alert.objects.filter(id=result["alert_id"]).exists())
 
+    @patch("capaggregator.alerts.tasks.resolve_lineage")
+    def test_oversized_free_text_fields_are_stored_verbatim(self, _resolve_lineage):
+        # CAP 1.2 puts no length limits on info free-text elements, and live
+        # feeds exceed any guessed cap: Sudan publishes <web> URLs with
+        # percent-encoded Arabic slugs (700+ chars), Kenya lists every
+        # government recipient in <audience> (550+ chars).
+        xml = cap_alert_xml(
+            web="https://meteosudan.sd/alerts/" + "%D8%A5" * 250,
+            audience="The Presidency; " + "; ".join(f"Ministry {n}" for n in range(60)),
+            headline="Heavy rainfall warning " * 40,
+        )
+
+        result = ingest_raw_message(transport="manual", xml=xml, authority_id=self.authority.id)
+
+        self.assertEqual(result["state"], "stored")
+        info = Alert.objects.get(id=result["alert_id"]).infos.first()
+        self.assertGreater(len(info.web), 512)
+        self.assertGreater(len(info.audience), 255)
+        self.assertGreater(len(info.headline), 512)
+
     def test_populated_sender_allowlist_still_quarantines_a_mismatched_sender(self):
         result = ingest_raw_message(
             transport="manual", xml=cap_alert_xml(sender="unregistered@x.test"), authority_id=self.authority.id

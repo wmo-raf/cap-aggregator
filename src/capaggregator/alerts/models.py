@@ -64,15 +64,18 @@ class AlertInfo(models.Model):
     urgency = models.CharField(max_length=10, choices=_choices(URGENCIES))
     severity = models.CharField(max_length=10, choices=_choices(SEVERITIES))
     certainty = models.CharField(max_length=10, choices=_choices(CERTAINTIES))
-    audience = models.CharField(max_length=255, blank=True)
+    # Free-text CAP elements carry no length limit in the spec, and live feeds
+    # exceed any guessed cap (700+ char percent-encoded <web> URLs, 550+ char
+    # <audience> recipient lists) — TextField, never CharField
+    audience = models.TextField(blank=True)
     onset = models.DateTimeField(null=True, blank=True)
     effective = models.DateTimeField(null=True, blank=True)
     expires = models.DateTimeField(null=True, blank=True)
     sender_name = models.CharField(max_length=255, blank=True)
-    headline = models.CharField(max_length=512, blank=True)
+    headline = models.TextField(blank=True)
     description = models.TextField(blank=True)
     instruction = models.TextField(blank=True)
-    web = models.URLField(max_length=512, blank=True)
+    web = models.TextField(blank=True)
     contact = models.CharField(max_length=255, blank=True)
     parameters = models.JSONField(default=dict, blank=True)
     event_codes = models.JSONField(default=dict, blank=True)
@@ -90,7 +93,7 @@ class AlertArea(gis_models.Model):
     geocode-only areas are resolved via the geocode registry."""
 
     info = models.ForeignKey(AlertInfo, on_delete=models.CASCADE, related_name="areas")
-    area_desc = models.CharField(max_length=512)
+    area_desc = models.TextField()
     geom = gis_models.MultiPolygonField(srid=4326, null=True, blank=True)
     is_circle_derived = models.BooleanField(default=False)
     is_geocode_derived = models.BooleanField(default=False)
@@ -152,7 +155,7 @@ class ResolvedAlert(gis_models.Model):
     severity = models.CharField(max_length=10)
     certainty = models.CharField(max_length=10)
     languages = ArrayField(models.CharField(max_length=20), default=list)
-    headline = models.CharField(max_length=512, blank=True)
+    headline = models.TextField(blank=True)
     onset = models.DateTimeField(null=True, blank=True)
     effective = models.DateTimeField(null=True, blank=True)
     expires = models.DateTimeField(null=True, blank=True)

@@ -18,10 +18,10 @@ from capaggregator.tests.cap_samples import cap_alert_xml
 from capaggregator.tests.factories import create_source_authority
 
 
-def stuck_raw_message(authority, xml, minutes_old):
+def stuck_raw_message(authority, xml, minutes_old, state="received"):
     raw = RawMessage.objects.create(
         transport="manual", xml=xml, sha256=hashlib.sha256(xml.encode()).hexdigest(),
-        authority=authority, state="received",
+        authority=authority, state=state,
     )
     RawMessage.objects.filter(id=raw.id).update(received_at=timezone.now() - timedelta(minutes=minutes_old))
     return raw
@@ -33,6 +33,20 @@ class SweepStuckMessagesTests(TestCase):
         authority = create_source_authority()
         stuck = stuck_raw_message(authority, cap_alert_xml(), minutes_old=6)
         stuck_raw_message(authority, cap_alert_xml(identifier="urn:fresh"), minutes_old=2)
+
+        sweep_unprocessed()
+
+        self.assertEqual(ingest.delay.call_count, 1)
+        self.assertEqual(ingest.delay.call_args.kwargs["xml"], stuck.xml)
+
+    @patch("capaggregator.ingestion.tasks.ingest_raw_message")
+    def test_messages_stuck_in_validated_are_also_rescued(self, ingest):
+        # A crash (or a since-fixed deterministic failure, e.g. an oversized
+        # column) between validate and store leaves state='validated'. If the
+        # feed no longer lists the entry, nothing re-delivers it — only the
+        # sweep can finish the job (re-execution resumes mid-flight messages).
+        authority = create_source_authority()
+        stuck = stuck_raw_message(authority, cap_alert_xml(), minutes_old=6, state="validated")
 
         sweep_unprocessed()
 
