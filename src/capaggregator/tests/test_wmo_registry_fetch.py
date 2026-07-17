@@ -53,7 +53,7 @@ class FetchWmoRegistryTests(TestCase):
         self.assertEqual(cached_content, b"<rss>second</rss>")
         get.assert_called_with(
             "https://alertingauthority.wmo.int/rss.xml",
-            timeout=15,
+            timeout=(5, 15),
             headers={"User-Agent": "cap-aggregator/0.1 (+feed-poller)"},
         )
 
