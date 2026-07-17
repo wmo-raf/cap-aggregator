@@ -233,6 +233,7 @@ def poll_feed(self, authority_id: int):
     feed_last_polled is stamped at poll END, so a poll slower than a tick would
     otherwise get a concurrent duplicate racing the conditional-GET state
     (lock_expiry backstops a killed worker)."""
+    import requests
     from django.utils import timezone
 
     from capaggregator.alerts.models import Alert
@@ -243,37 +244,43 @@ def poll_feed(self, authority_id: int):
     if authority is None or not authority.feed_url:
         return
 
+    # One keep-alive session per poll cycle: the feed + every CAP XML fetch
+    # share connections instead of re-handshaking per request
+    session = requests.Session()
     try:
-        entries, changed = fetch_feed(authority)
-    except Exception as ex:
-        logger.warning("Feed poll failed for %s: %s", authority.slug, ex)
-        authority.feed_last_polled = timezone.now()
-        authority.feed_consecutive_failures += 1
-        authority.save(update_fields=["feed_last_polled", "feed_consecutive_failures"])
-
-        from .models import SourceEvent
-
-        SourceEvent.objects.create(authority=authority, transport="poll", ok=False, error=str(ex))
-        return
-
-    fetched = 0
-    for entry in entries:
-        entry_id = entry["id"]
-        cap_url = entry["cap_url"]
-        if not cap_url:
-            continue
-        # Cheap guard: feed entry ids from cap-composer equal the CAP identifier.
-        # A DeliveryReceipt for already-seen alerts is still valuable, but fetching
-        # every XML every poll is not — only fetch when the identifier is unknown.
-        if entry_id and Alert.objects.filter(authority=authority, identifier=entry_id).exists():
-            continue
         try:
-            xml = fetch_cap_xml(cap_url)
+            entries, changed = fetch_feed(authority, session=session)
         except Exception as ex:
-            logger.warning("Failed to fetch CAP XML %s: %s", cap_url, ex)
-            continue
-        ingest_raw_message.delay(transport="poll", xml=xml, authority_id=authority.id)
-        fetched += 1
+            logger.warning("Feed poll failed for %s: %s", authority.slug, ex)
+            authority.feed_last_polled = timezone.now()
+            authority.feed_consecutive_failures += 1
+            authority.save(update_fields=["feed_last_polled", "feed_consecutive_failures"])
+
+            from .models import SourceEvent
+
+            SourceEvent.objects.create(authority=authority, transport="poll", ok=False, error=str(ex))
+            return
+
+        fetched = 0
+        for entry in entries:
+            entry_id = entry["id"]
+            cap_url = entry["cap_url"]
+            if not cap_url:
+                continue
+            # Cheap guard: feed entry ids from cap-composer equal the CAP identifier.
+            # A DeliveryReceipt for already-seen alerts is still valuable, but fetching
+            # every XML every poll is not — only fetch when the identifier is unknown.
+            if entry_id and Alert.objects.filter(authority=authority, identifier=entry_id).exists():
+                continue
+            try:
+                xml = fetch_cap_xml(cap_url, session=session)
+            except Exception as ex:
+                logger.warning("Failed to fetch CAP XML %s: %s", cap_url, ex)
+                continue
+            ingest_raw_message.delay(transport="poll", xml=xml, authority_id=authority.id)
+            fetched += 1
+    finally:
+        session.close()
 
     authority.feed_last_polled = timezone.now()
     authority.feed_consecutive_failures = 0
