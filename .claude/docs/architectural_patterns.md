@@ -23,13 +23,21 @@ Per-app file conventions:
 Tasks follow a fixed decorator + import discipline (documented at
 `ingestion/tasks.py:1`):
 
-- `@shared_task(bind=True, acks_late=True)`; the main pipeline entry point adds
-  `max_retries=0` and relies on a periodic **sweep** task for recovery
-  (`ingestion/tasks.py:142` `sweep_unprocessed` re-runs rows stuck in `received`).
+- `@shared_task(bind=True, acks_late=True)`; pipeline tasks (`ingest_raw_message`,
+  `resolve_lineage`) add **limited autoretry for transient errors** — the shared
+  `TRANSIENT_RETRY` options in `ingestion/tasks.py` (database `OperationalError`,
+  ~3 attempts, jittered 5–60s backoff). Safe because the pipeline is idempotent:
+  re-execution of the same bytes resumes a mid-flight `RawMessage`, dedup
+  short-circuits completed ones, and lineage resolution is a refresh. Validation
+  and parse failures must never retry. The periodic **sweep** task remains the
+  backstop for exhausted retries and killed workers (`sweep_unprocessed` re-runs
+  rows stuck in `received`).
 - **Late imports inside the task body**, not at module top — keeps task modules
   importable by the Django app registry before models are ready. This is
-  pervasive: every task and `run_pipeline` imports models locally.
-- Queue routing is centralized in `config/celery.py:14`: ingestion/alerts tasks →
+  pervasive: every task and `run_pipeline` imports models locally. (Exception:
+  names decorators need at definition time, e.g. autoretry exception classes.)
+- Queue routing is centralized in `config/celery.py:14`: poll tasks →
+  `capagg-polling` (gevent worker, I/O only), ingestion/alerts tasks →
   `capagg-ingestion`, everything else → `capagg-default`. Don't set queues on
   individual tasks.
 - Reliability settings (`acks_late`, `reject_on_worker_lost`, `prefetch=1`) are

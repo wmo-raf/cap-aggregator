@@ -1,6 +1,11 @@
 """Ingestion Celery tasks. Conventions: bind=True, acks_late=True, late imports
-inside task bodies, max_retries=0 on the main task with recovery via the
-sweep_unprocessed periodic task.
+inside task bodies (exception: names the decorators need, e.g. autoretry
+exception classes). Pipeline tasks autoretry TRANSIENT errors (database
+operational errors) with short jittered backoff — safe because ingestion is
+idempotent: re-execution of the same bytes RESUMES a mid-flight RawMessage and
+dedup short-circuits completed ones. Validation/parse failures never retry.
+The sweep_unprocessed periodic task remains the backstop for exhausted retries
+and killed workers.
 
 Transport resolution (docs/design.md §1):
   All transports (MQTT preferred, webhook optional, feed poll mandatory) feed
@@ -23,8 +28,19 @@ import logging
 
 from celery import shared_task
 from celery_singleton import Singleton
+from django.db import OperationalError
 
 logger = logging.getLogger(__name__)
+
+# Transient-error autoretry for pipeline tasks: ~3 quick attempts (jittered
+# 5–60s backoff) so a momentary DB/network blip costs seconds, not a sweep cycle
+TRANSIENT_RETRY = dict(
+    autoretry_for=(OperationalError,),
+    max_retries=3,
+    retry_backoff=5,
+    retry_backoff_max=60,
+    retry_jitter=True,
+)
 
 # Concurrent CAP XML fetches per poll — bounds our politeness toward one source
 CAP_FETCH_POOL_SIZE = 10
@@ -108,7 +124,7 @@ def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
     return {"state": "stored", "raw_id": raw.id, "alert_id": alert.id}
 
 
-@shared_task(bind=True, acks_late=True, max_retries=0)
+@shared_task(bind=True, acks_late=True, **TRANSIENT_RETRY)
 def ingest_raw_message(self, transport: str, xml: str, topic: str = "", authority_id: int | None = None):
     """Single entry point for all transports (MQTT, webhook, poll, manual)."""
     from capaggregator.sources.models import SourceAuthority
@@ -133,6 +149,12 @@ def ingest_raw_message(self, transport: str, xml: str, topic: str = "", authorit
 
     # --- Dedup layer 1: exact bytes already seen ---
     if not created:
+        # A prior attempt that died mid-flight (worker crash, exhausted retries)
+        # left the message unfinished — re-execution (celery retry, sweep,
+        # genuine redelivery) must RESUME it, not record a bogus duplicate.
+        if raw.state in ("received", "validated"):
+            logger.info("Resuming unfinished raw message %s via %s", sha256[:12], transport)
+            return run_pipeline(raw, transport=transport, authority=authority)
         existing_alert = raw.alerts.first()
         DeliveryReceipt.objects.create(authority=authority, transport=transport,
                                        alert=existing_alert, raw_message=raw, was_first=False)
