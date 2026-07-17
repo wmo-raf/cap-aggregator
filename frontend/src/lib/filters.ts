@@ -61,9 +61,11 @@ export function filtersFromRouteQuery(query: LocationQuery | Record<string, unkn
   return filters;
 }
 
-/** Martin tile URL query params (the tile function reads them as query_params). */
+/** Martin tile URL query params (the tile function reads them as query_params).
+ * Always pins status=Actual: the tile function has no default, and the map must
+ * agree with the search API's public default (Exercise/Test never render). */
 export function tileQueryFromFilters(filters: AlertFilters): Record<string, string> {
-  return filtersToRouteQuery(filters);
+  return { status: "Actual", ...filtersToRouteQuery(filters) };
 }
 
 /** /api/search/ params: the facets, the viewport bbox and the selected time. */

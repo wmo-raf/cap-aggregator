@@ -81,14 +81,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function tileUrl(): string {
     const params = new URLSearchParams();
+    // Public current situation: only Actual alerts are real warnings — keep in
+    // sync with the homepage stats/list queries (HomePage.get_context)
+    params.set("status", "Actual");
     const severities = selectedSeverities();
     // the tile function matches stored capitalized values ("Severe")
     if (severities.length) {
       params.set("severity", severities.map((s) => s[0].toUpperCase() + s.slice(1)).join(","));
     }
     if (selectedTime) params.set("t", roundToBucket(selectedTime).toISOString());
-    const qs = params.toString();
-    return qs ? `${alertTileUrlTemplate()}?${qs}` : alertTileUrlTemplate();
+    return `${alertTileUrlTemplate()}?${params.toString()}`;
   }
 
   const map = new maplibregl.Map({

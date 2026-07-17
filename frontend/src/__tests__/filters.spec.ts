@@ -52,8 +52,11 @@ describe("alert filters", () => {
   it("maps filters to Martin tile query params (CSV, empty facets omitted)", () => {
     const filters = { ...emptyFilters(), severity: ["Severe"], country: ["ke"] };
 
-    expect(tileQueryFromFilters(filters)).toEqual({ severity: "Severe", country: "ke" });
-    expect(tileQueryFromFilters(emptyFilters())).toEqual({});
+    expect(tileQueryFromFilters(filters)).toEqual({ status: "Actual", severity: "Severe", country: "ke" });
+  });
+
+  it("always pins the tile query to Actual status — the map must match the search API's public default", () => {
+    expect(tileQueryFromFilters(emptyFilters())).toEqual({ status: "Actual" });
   });
 
   it("builds /api/search/ params from filters plus the viewport bbox", () => {
