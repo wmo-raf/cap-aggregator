@@ -205,7 +205,8 @@ CACHES = {
 # Test runs share the dev Redis; an isolated in-memory cache keeps their
 # cache.clear()/get_or_set from bleeding cross-database values into the
 # running dev site (and vice versa).
-if len(sys.argv) > 1 and sys.argv[1] == "test":
+_IS_TEST_RUN = len(sys.argv) > 1 and sys.argv[1] == "test"
+if _IS_TEST_RUN:
     CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 # --- Celery ---
@@ -213,8 +214,14 @@ CELERY_BROKER_URL = REDIS_URL
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
-# celery-singleton reuses the django-redis connection instead of opening its own
-CELERY_SINGLETON_BACKEND_CLASS = "capaggregator.celery_singleton_backend.RedisBackendForSingleton"
+# celery-singleton reuses the django-redis connection instead of opening its
+# own; test runs use an in-process lock store for the same isolation reason as
+# the LocMem cache above
+CELERY_SINGLETON_BACKEND_CLASS = (
+    "capaggregator.celery_singleton_backend.LocMemBackendForSingleton"
+    if _IS_TEST_RUN
+    else "capaggregator.celery_singleton_backend.RedisBackendForSingleton"
+)
 
 # Results stored in the database (django-celery-results) — inspectable in the
 # admin and survives Redis restarts

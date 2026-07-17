@@ -22,6 +22,7 @@ import hashlib
 import logging
 
 from celery import shared_task
+from celery_singleton import Singleton
 
 logger = logging.getLogger(__name__)
 
@@ -171,9 +172,12 @@ def purge_old_source_events(self):
         logger.info("Purged %s SourceEvent rows older than 90 days", deleted)
 
 
-@shared_task(bind=True, acks_late=True)
+@shared_task(base=Singleton, lock_expiry=120, bind=True, acks_late=True)
 def poll_all_feeds(self):
     """Celery-beat entry point: fan out one poll_feed per authority that is due.
+
+    Singleton: a beat tick firing while the previous scan is still running is a
+    no-op (lock_expiry backstops a killed worker; the scan itself takes seconds).
 
     Adaptive interval per authority:
       - push transport configured AND healthy → feed_reconcile_interval_minutes
@@ -211,12 +215,17 @@ def poll_all_feeds(self):
             poll_feed.delay(authority.id)
 
 
-@shared_task(bind=True, acks_late=True, max_retries=0)
+@shared_task(base=Singleton, lock_expiry=300, bind=True, acks_late=True, max_retries=0)
 def poll_feed(self, authority_id: int):
     """Poll one authority's CAP feed (mandatory baseline transport).
 
     Conditional GET (ETag/Last-Modified); skips entries whose CAP identifier is
-    already stored (cheap guard — full dedup still happens in ingest_raw_message)."""
+    already stored (cheap guard — full dedup still happens in ingest_raw_message).
+
+    Singleton per authority_id: the dispatcher re-scans every 60s while
+    feed_last_polled is stamped at poll END, so a poll slower than a tick would
+    otherwise get a concurrent duplicate racing the conditional-GET state
+    (lock_expiry backstops a killed worker)."""
     from django.utils import timezone
 
     from capaggregator.alerts.models import Alert
