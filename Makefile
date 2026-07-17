@@ -9,6 +9,7 @@ DEV_DC = docker compose -f docker-compose.yml -f docker-compose.dev.yml $(OVERRI
 APP = capagg-app
 WORKER_DEFAULT = capagg-worker-default
 WORKER_INGESTION = capagg-worker-ingestion
+WORKER_POLLING = capagg-worker-polling
 BEAT = capagg-beat
 CONSUMER = capagg-mqtt-consumer
 
@@ -17,8 +18,8 @@ MANAGE = capagg
 .PHONY: build up up-d down stop restart ps config logs app-logs shell migrate makemigrations \
 	createsuperuser collectstatic sync-mosquitto create-tile-function \
 	dev-build dev-up dev-up-d dev-down dev-stop dev-restart dev-ps dev-config dev-logs \
-	dev-app-logs dev-worker-default-logs dev-worker-ingestion-logs dev-beat-logs dev-consumer-logs \
-	dev-shell dev-worker-default-shell dev-worker-ingestion-shell \
+	dev-app-logs dev-worker-default-logs dev-worker-ingestion-logs dev-worker-polling-logs dev-beat-logs dev-consumer-logs \
+	dev-shell dev-worker-default-shell dev-worker-ingestion-shell dev-worker-polling-shell \
 	dev-migrate dev-makemigrations dev-createsuperuser dev-sync-mosquitto dev-create-tile-function dev-test \
 	dev-test-js dev-vite-logs
 
@@ -116,6 +117,9 @@ dev-worker-default-logs:
 dev-worker-ingestion-logs:
 	$(DEV_DC) logs -f $(WORKER_INGESTION)
 
+dev-worker-polling-logs:
+	$(DEV_DC) logs -f $(WORKER_POLLING)
+
 dev-beat-logs:
 	$(DEV_DC) logs -f $(BEAT)
 
@@ -130,6 +134,9 @@ dev-worker-default-shell:
 
 dev-worker-ingestion-shell:
 	$(DEV_DC) exec $(WORKER_INGESTION) bash
+
+dev-worker-polling-shell:
+	$(DEV_DC) exec $(WORKER_POLLING) bash
 
 dev-migrate:
 	$(DEV_DC) exec $(APP) $(MANAGE) migrate

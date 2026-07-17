@@ -181,6 +181,12 @@ services:
     command: celery-ingestion-worker
     environment: *worker-variables
 
+  capagg-worker-polling:
+    container_name: capagg-worker-polling
+    <<: *app-common
+    command: celery-polling-worker
+    environment: *worker-variables
+
   capagg-beat:
     container_name: capagg-beat
     <<: *app-common
