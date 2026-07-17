@@ -98,6 +98,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "wagtail.contrib.settings.context_processors.settings",
+                "capaggregator.config.context_processors.version",
             ],
         },
     },
@@ -187,7 +188,8 @@ DJANGO_VITE = {
 WAGTAIL_SITE_NAME = "CAP Aggregator"
 WAGTAILADMIN_BASE_URL = env("WAGTAILADMIN_BASE_URL", default="http://localhost:8000")
 
-VERSION = "0.1.0"
+# Single source of truth: capaggregator/version.py (hatchling reads it too)
+from capaggregator.version import __version__ as VERSION  # noqa: E402
 
 # --- Cache (redis) ---
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
@@ -302,5 +304,5 @@ REST_FRAMEWORK = {
 }
 SPECTACULAR_SETTINGS = {
     "TITLE": "CAP Aggregator API",
-    "VERSION": "0.1.0",
+    "VERSION": VERSION,
 }
