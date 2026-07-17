@@ -7,12 +7,15 @@ from capaggregator.ingestion.tasks import TRANSIENT_RETRY
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, acks_late=True, **TRANSIENT_RETRY)
+@shared_task(bind=True, acks_late=True, priority=0, **TRANSIENT_RETRY)
 def resolve_lineage(self, alert_id: int):
     """Attach an ingested alert to its event chain and refresh resolved state,
     then fan out (SSE live-mode event, re-publication, metrics).
 
-    Autoretries transient DB errors (idempotent: resolution is a refresh)."""
+    Autoretries transient DB errors (idempotent: resolution is a refresh).
+    priority=0 = HIGHEST on the Redis broker: a stored alert becomes visible in
+    resolved state ahead of queued bulk work — meaningful since polls left the
+    ingestion queue (capagg-polling) and the queue is pipeline-only."""
     from .lineage import resolve
     from .models import Alert
 
