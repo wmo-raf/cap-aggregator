@@ -31,6 +31,7 @@ class AuthorityListView(ListAPIView):
                 active_alert_count=Count(
                     "resolved_alerts",
                     filter=Q(
+                        resolved_alerts__status="Actual",
                         resolved_alerts__is_cancelled=False,
                         resolved_alerts__effective__lte=now,
                         resolved_alerts__expires__gt=now,
@@ -82,6 +83,12 @@ class AlertSearchView(ListAPIView):
             if value := params.get(param):
                 qs = qs.filter(**{lookup: value.split(",")})
 
+        # Public default: only status=Actual is a real warning (matches the
+        # homepage and the tile URL the explorer map requests). An explicit
+        # ?status= param overrides — Exercise/Test remain reachable on demand.
+        if not params.get("status"):
+            qs = qs.filter(status="Actual")
+
         if country := params.get("country"):
             qs = qs.filter(countries__overlap=country.lower().split(","))
         if category := params.get("category"):
@@ -106,10 +113,12 @@ class AlertSearchView(ListAPIView):
                 if bound:
                     qs = qs.filter(**{"effective__lt" if exclusive else "effective__lte": bound})
         elif t := params.get("t"):
-            qs = qs.filter(effective__lte=t, expires__gt=t)
+            # "active at t" must agree with the map: cancelled chains are gone
+            # from the tiles the moment the Cancel resolves
+            qs = qs.filter(is_cancelled=False, effective__lte=t, expires__gt=t)
         elif params.get("active", "true").lower() == "true":
             now = timezone.now()
-            qs = qs.filter(effective__lte=now, expires__gt=now)
+            qs = qs.filter(is_cancelled=False, effective__lte=now, expires__gt=now)
 
         if bbox := params.get("bbox"):
             from django.contrib.gis.geos import Polygon

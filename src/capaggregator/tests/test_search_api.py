@@ -178,6 +178,53 @@ class UpcomingModeTests(TestCase):
         self.assertNotIn("Already expired", headlines)
 
 
+class ActiveConsistencyTests(TestCase):
+    """The explorer map (tile function) excludes cancelled alerts and the
+    public surfaces default to status=Actual; the search API's active and
+    point-in-time modes must agree with the map, or the table shows alerts
+    the map doesn't. Archive (range) mode deliberately keeps history."""
+
+    def setUp(self):
+        self.authority = create_source_authority()
+        now = timezone.now()
+        window = {"effective": now - timedelta(hours=2), "expires": now + timedelta(hours=4)}
+        self.live = create_event_chain(self.authority, infos=[{**window, "headline": "Live warning"}])
+        self.cancelled = create_event_chain(
+            self.authority, is_cancelled=True, infos=[{**window, "headline": "Cancelled warning"}]
+        )
+        self.test_drill = create_event_chain(
+            self.authority, status="Test", infos=[{**window, "headline": "Monthly drill"}]
+        )
+
+    def chains(self, **params):
+        response = self.client.get(reverse("alert_search"), params)
+        self.assertEqual(response.status_code, 200)
+        return {f["properties"]["chain"] for f in response.json()["results"]["features"]}
+
+    def test_active_mode_excludes_cancelled_alerts(self):
+        self.assertNotIn(self.cancelled.pk, self.chains())
+
+    def test_point_in_time_mode_excludes_cancelled_alerts(self):
+        t = timezone.now().isoformat()
+
+        self.assertEqual(self.chains(t=t), {self.live.pk})
+
+    def test_non_actual_alerts_are_excluded_by_default(self):
+        self.assertEqual(self.chains(), {self.live.pk})
+
+    def test_an_explicit_status_param_overrides_the_actual_default(self):
+        self.assertEqual(self.chains(status="Test"), {self.test_drill.pk})
+
+    def test_range_mode_keeps_cancelled_alerts_as_history(self):
+        start = (timezone.now() - timedelta(days=1)).date().isoformat()
+        end = (timezone.now() + timedelta(days=1)).date().isoformat()
+
+        chains = self.chains(effective_from=start, effective_to=end)
+
+        self.assertIn(self.cancelled.pk, chains)
+        self.assertIn(self.live.pk, chains)
+
+
 class CountryOrderingTests(TestCase):
     """order=country sorts by the issuing authority's country, then authority
     name, then newest-first — so Country > Authority grouped, paginated lists

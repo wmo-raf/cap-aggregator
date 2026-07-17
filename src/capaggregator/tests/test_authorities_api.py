@@ -39,6 +39,7 @@ class AuthoritiesApiTests(TestCase):
         authority = create_source_authority(name="Kenya Met")
         create_event_chain(authority)  # live
         create_event_chain(authority, is_cancelled=True)  # cancelled — not counted
+        create_event_chain(authority, status="Test")  # drill — not a public warning
         past = timezone.now() - timedelta(days=3)
         create_event_chain(  # expired — not counted
             authority, sent=past, infos=[{"effective": past, "expires": past + timedelta(hours=1)}]
