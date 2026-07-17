@@ -2,13 +2,17 @@ import logging
 
 from celery import shared_task
 
+from capaggregator.ingestion.tasks import TRANSIENT_RETRY
+
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, acks_late=True, max_retries=0)
+@shared_task(bind=True, acks_late=True, **TRANSIENT_RETRY)
 def resolve_lineage(self, alert_id: int):
     """Attach an ingested alert to its event chain and refresh resolved state,
-    then fan out (SSE live-mode event, re-publication, metrics)."""
+    then fan out (SSE live-mode event, re-publication, metrics).
+
+    Autoretries transient DB errors (idempotent: resolution is a refresh)."""
     from .lineage import resolve
     from .models import Alert
 
