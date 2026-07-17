@@ -202,8 +202,15 @@ def poll_all_feeds(self):
                 received_at__gte=now - window,
             ).exists()
         )
-        interval = (authority.feed_reconcile_interval_minutes if push_healthy
-                    else authority.feed_poll_interval_minutes)
+        if push_healthy:
+            interval = authority.feed_reconcile_interval_minutes
+        else:
+            # Failing feeds back off exponentially (1→2→4… min) up to the
+            # reconcile interval; one success resets the counter to 0
+            interval = min(
+                authority.feed_reconcile_interval_minutes,
+                authority.feed_poll_interval_minutes * 2**authority.feed_consecutive_failures,
+            )
 
         # feed_last_polled is stamped at poll END; half a beat tick of slack
         # keeps a nonzero poll duration from pushing the next due moment just
@@ -241,7 +248,8 @@ def poll_feed(self, authority_id: int):
     except Exception as ex:
         logger.warning("Feed poll failed for %s: %s", authority.slug, ex)
         authority.feed_last_polled = timezone.now()
-        authority.save(update_fields=["feed_last_polled"])
+        authority.feed_consecutive_failures += 1
+        authority.save(update_fields=["feed_last_polled", "feed_consecutive_failures"])
 
         from .models import SourceEvent
 
@@ -268,7 +276,9 @@ def poll_feed(self, authority_id: int):
         fetched += 1
 
     authority.feed_last_polled = timezone.now()
-    authority.save(update_fields=["feed_etag", "feed_last_modified", "feed_type_detected", "feed_last_polled"])
+    authority.feed_consecutive_failures = 0
+    authority.save(update_fields=["feed_etag", "feed_last_modified", "feed_type_detected",
+                                  "feed_last_polled", "feed_consecutive_failures"])
 
     from .models import SourceEvent
 

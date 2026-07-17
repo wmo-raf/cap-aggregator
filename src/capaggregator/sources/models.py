@@ -96,6 +96,9 @@ class SourceAuthority(models.Model):
         verbose_name=_("Reconcile poll interval (min)"),
         help_text=_("Slow sweep used while MQTT/webhook are healthy"),
     )
+    # Backoff state: consecutive failed polls; doubles the effective fast-poll
+    # interval (capped at the reconcile interval), reset by any successful poll
+    feed_consecutive_failures = models.PositiveIntegerField(default=0, editable=False)
     # Conditional-GET state
     feed_etag = models.CharField(max_length=255, blank=True, editable=False)
     feed_last_modified = models.CharField(max_length=100, blank=True, editable=False)
