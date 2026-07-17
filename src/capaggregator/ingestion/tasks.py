@@ -26,6 +26,9 @@ from celery_singleton import Singleton
 
 logger = logging.getLogger(__name__)
 
+# Concurrent CAP XML fetches per poll — bounds our politeness toward one source
+CAP_FETCH_POOL_SIZE = 10
+
 
 def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
     """Identity-dedup → validate → quarantine | parse & store → receipt →
@@ -261,7 +264,7 @@ def poll_feed(self, authority_id: int):
             SourceEvent.objects.create(authority=authority, transport="poll", ok=False, error=str(ex))
             return
 
-        fetched = 0
+        to_fetch = []
         for entry in entries:
             entry_id = entry["id"]
             cap_url = entry["cap_url"]
@@ -272,13 +275,28 @@ def poll_feed(self, authority_id: int):
             # every XML every poll is not — only fetch when the identifier is unknown.
             if entry_id and Alert.objects.filter(authority=authority, identifier=entry_id).exists():
                 continue
-            try:
-                xml = fetch_cap_xml(cap_url, session=session)
-            except Exception as ex:
-                logger.warning("Failed to fetch CAP XML %s: %s", cap_url, ex)
-                continue
-            ingest_raw_message.delay(transport="poll", xml=xml, authority_id=authority.id)
-            fetched += 1
+            to_fetch.append(cap_url)
+
+        fetched = 0
+        if to_fetch:
+            # Backlogs (onboarding, post-outage) would cost entries x round-trip
+            # serially; a bounded greenlet pool overlaps the fetches while staying
+            # polite to the source server. Lazy import: only the gevent polling
+            # worker runs this task — gevent must never load in pipeline workers.
+            from gevent.pool import Pool
+
+            def fetch_one(cap_url):
+                try:
+                    return fetch_cap_xml(cap_url, session=session)
+                except Exception as ex:
+                    logger.warning("Failed to fetch CAP XML %s: %s", cap_url, ex)
+                    return None
+
+            for xml in Pool(CAP_FETCH_POOL_SIZE).imap_unordered(fetch_one, to_fetch):
+                if xml is None:
+                    continue
+                ingest_raw_message.delay(transport="poll", xml=xml, authority_id=authority.id)
+                fetched += 1
     finally:
         session.close()
 
