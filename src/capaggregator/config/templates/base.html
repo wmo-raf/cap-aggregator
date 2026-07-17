@@ -19,7 +19,6 @@
         </a>
         <nav class="flex items-center gap-4 text-sm font-medium" aria-label="Site">
             <a href="{% url 'explorer' %}" class="text-muted-foreground transition-colors hover:text-foreground">Map explorer</a>
-            <a href="/api/docs/" class="text-muted-foreground transition-colors hover:text-foreground">API</a>
             <button type="button" data-theme-toggle
                     class="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                     aria-label="Toggle dark mode">
@@ -35,10 +34,11 @@
 
 <footer class="border-t border-border bg-card">
     <div class="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <p>CAP Aggregator — aggregated Common Alerting Protocol feeds from national alerting authorities.</p>
+        <p>Powered by <a href="https://github.com/wmo-raf/cap-aggregator" target="_blank" rel="noopener"
+                         class="transition-colors hover:text-foreground underline underline-offset-2">cap-aggregator</a>
+            v{{ CAPAGG_VERSION }}</p>
         <nav class="flex gap-4" aria-label="Footer">
             <a href="{% url 'explorer' %}" class="transition-colors hover:text-foreground">Explorer</a>
-            <a href="/api/docs/" class="transition-colors hover:text-foreground">API docs</a>
         </nav>
     </div>
 </footer>
