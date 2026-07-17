@@ -212,6 +212,17 @@ if _IS_TEST_RUN:
 # --- Celery ---
 CELERY_BROKER_URL = REDIS_URL
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# Redis broker priorities (NB: inverted vs AMQP — 0 is HIGHEST; the bare queue
+# is consumed before its :N suffixed variants). Ordinary tasks ride the default
+# tier; resolve_lineage publishes at 0 so a stored alert surfaces in resolved
+# state ahead of bulk ingestion work (e.g. a backfill).
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "queue_order_strategy": "priority",
+    "priority_steps": [0, 5, 9],
+    "sep": ":",
+}
+CELERY_TASK_DEFAULT_PRIORITY = 5
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 # celery-singleton reuses the django-redis connection instead of opening its
