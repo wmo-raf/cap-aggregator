@@ -83,6 +83,19 @@ class StatCardsTests(TestCase):
         by_severity = {i["severity"]: i["count"] for i in stats["alert_severity_counts"]}
         self.assertEqual(by_severity, {"Extreme": 0, "Severe": 2, "Moderate": 0, "Minor": 1})
 
+    def test_non_actual_alerts_are_not_counted(self):
+        # CAP status Exercise/Test/System/Draft must never inflate the public
+        # "current situation" — only Actual alerts are real warnings.
+        create_event_chain(self.kenya, infos=[{"severity": "Severe"}])
+        create_event_chain(self.kenya, status="Test", infos=[{"severity": "Extreme", "headline": "Monthly drill"}])
+        create_event_chain(self.kenya, status="Exercise", infos=[{"severity": "Extreme", "headline": "Exercise run"}])
+
+        stats = self.stats()
+
+        self.assertEqual(stats["active_alerts"], 1)
+        by_severity = {i["severity"]: i["count"] for i in stats["alert_severity_counts"]}
+        self.assertEqual(by_severity["Extreme"], 0)
+
     def test_countries_with_alerts_classified_by_worst_severity(self):
         # Kenya: Severe + Moderate → one country, classified Severe
         create_event_chain(self.kenya, infos=[{"severity": "Severe"}])
@@ -146,6 +159,15 @@ class AlertGroupTests(TestCase):
         self.assertEqual([g["authority"].name for g in groups], ["Uganda Met", "Kenya Met"])
         self.assertEqual(groups[0]["country_name"], "Uganda")
         self.assertEqual(groups[0]["flag"], "🇺🇬")
+
+    def test_non_actual_alerts_are_not_listed(self):
+        create_event_chain(self.kenya, infos=[{"headline": "Real flood warning"}])
+        create_event_chain(self.kenya, status="Test", infos=[{"headline": "Monthly drill"}])
+
+        response = self.client.get("/")
+
+        self.assertContains(response, "Real flood warning")
+        self.assertNotContains(response, "Monthly drill")
 
     def test_all_alerts_rendered_first_two_visible_rest_expandable(self):
         base = timezone.now()

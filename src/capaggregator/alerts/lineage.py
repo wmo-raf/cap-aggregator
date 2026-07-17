@@ -6,11 +6,17 @@ merges chains when a late-arriving message connects two of them.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
+
+# CAP <expires> is optional (validators only warn). A NULL expiry must never
+# reach the read model: the tile SQL would render the alert forever while the
+# homepage's `expires > now` queries silently drop it. Alerts without an
+# explicit expiry get this default active window from their effective time.
+DEFAULT_ACTIVE_WINDOW = timedelta(hours=24)
 
 
 @transaction.atomic
@@ -108,6 +114,7 @@ def _refresh_resolved(chain):
             merged = MultiPolygon(GEOSGeometry(merged.wkt), srid=4326)
         geom = merged
 
+    effective = info.effective or content_alert.sent
     defaults = {
         "authority": chain.authority,
         "latest_alert": latest,
@@ -121,8 +128,8 @@ def _refresh_resolved(chain):
         "languages": list(content_alert.infos.values_list("language", flat=True)),
         "headline": info.headline,
         "onset": info.onset,
-        "effective": info.effective or content_alert.sent,
-        "expires": info.expires,
+        "effective": effective,
+        "expires": info.expires or effective + DEFAULT_ACTIVE_WINDOW,
         "is_cancelled": chain.is_cancelled,
         "countries": _attribute_countries(chain.authority, geom),
         "geom": geom,

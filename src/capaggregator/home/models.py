@@ -82,7 +82,12 @@ class HomePage(Page):
 
         context = super().get_context(request, *args, **kwargs)
         now = timezone.now()
-        active = ResolvedAlert.objects.filter(is_cancelled=False, effective__lte=now, expires__gt=now)
+        # Only status=Actual is a real public warning — Exercise/Test/System/
+        # Draft alerts must never appear in the public current situation (the
+        # homepage map JS passes the same status filter to the tile function)
+        active = ResolvedAlert.objects.filter(
+            status="Actual", is_cancelled=False, effective__lte=now, expires__gt=now,
+        )
 
         def compute_stats():
             alert_counts = {}
@@ -126,7 +131,7 @@ class HomePage(Page):
         # Active + upcoming alerts grouped per authority, worst severity first.
         # Upcoming items ship hidden (data-upcoming) with data-effective/expires
         # attributes; the homepage map JS toggles them for the selected time.
-        listed = ResolvedAlert.objects.filter(is_cancelled=False, expires__gt=now)
+        listed = ResolvedAlert.objects.filter(status="Actual", is_cancelled=False, expires__gt=now)
         groups = {}
         for alert in listed.select_related("authority").order_by("-effective"):
             group = groups.get(alert.authority_id)
