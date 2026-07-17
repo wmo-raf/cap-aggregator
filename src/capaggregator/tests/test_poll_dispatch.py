@@ -36,3 +36,28 @@ class PollDispatchTests(TestCase):
         dispatched = {call.args[0] for call in poll_feed.delay.call_args_list}
         self.assertIn(feed_only_source.id, dispatched)
         self.assertNotIn(push_source.id, dispatched)
+
+    @patch("capaggregator.ingestion.tasks.poll_feed")
+    def test_due_check_tolerates_poll_duration_drift(self, poll_feed):
+        # feed_last_polled is stamped at poll END, so requiring a full interval
+        # would make every nonzero poll duration miss the next dispatcher tick
+        # (1-min interval → effective 2 min). Half a tick of slack absorbs it.
+        nearly_due = create_source_authority(name="Nearly Due")
+        nearly_due.feed_last_polled = timezone.now() - timedelta(seconds=40)
+        nearly_due.save(update_fields=["feed_last_polled"])
+
+        fresh = create_source_authority(name="Fresh")
+        fresh.feed_last_polled = timezone.now() - timedelta(seconds=20)
+        fresh.save(update_fields=["feed_last_polled"])
+
+        tasks.poll_all_feeds()
+
+        dispatched = {call.args[0] for call in poll_feed.delay.call_args_list}
+        self.assertIn(nearly_due.id, dispatched)
+        self.assertNotIn(fresh.id, dispatched)
+
+    def test_fast_poll_defaults_to_one_minute(self):
+        # Alerts are time-sensitive: the poll-only worst case must be ~2 min
+        # (interval + tick), so new authorities start at the 1-minute fast poll.
+        authority = create_source_authority()
+        self.assertEqual(authority.feed_poll_interval_minutes, 1)

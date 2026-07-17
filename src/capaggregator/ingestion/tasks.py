@@ -201,8 +201,12 @@ def poll_all_feeds(self):
         interval = (authority.feed_reconcile_interval_minutes if push_healthy
                     else authority.feed_poll_interval_minutes)
 
+        # feed_last_polled is stamped at poll END; half a beat tick of slack
+        # keeps a nonzero poll duration from pushing the next due moment just
+        # past the next tick (which would double the effective cadence).
+        slack = timedelta(seconds=30)
         due = (authority.feed_last_polled is None
-               or authority.feed_last_polled <= now - timedelta(minutes=interval))
+               or authority.feed_last_polled <= now - (timedelta(minutes=interval) - slack))
         if due:
             poll_feed.delay(authority.id)
 
