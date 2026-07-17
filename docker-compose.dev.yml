@@ -30,6 +30,10 @@ services:
     <<: *dev-common
     command: celery-ingestion-worker-dev
 
+  capagg-worker-polling:
+    <<: *dev-common
+    command: celery-polling-worker-dev
+
   capagg-beat:
     <<: *dev-common
     command: celery-beat

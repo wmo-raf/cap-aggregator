@@ -11,16 +11,16 @@ cd /app/src
 
 
 run_celery_worker() {
-  local queue="$1" concurrency="$2" name="$3"
-  exec celery -A capaggregator.config worker -Q "$queue" -c "$concurrency" \
+  local queue="$1" concurrency="$2" name="$3" pool="${4:-prefork}"
+  exec celery -A capaggregator.config worker -Q "$queue" -c "$concurrency" -P "$pool" \
     -l "${CAPAGG_CELERY_WORKER_LOG_LEVEL:-INFO}" -n "$name@%h"
 }
 
 run_celery_worker_dev() {
-  local queue="$1" concurrency="$2" name="$3"
+  local queue="$1" concurrency="$2" name="$3" pool="${4:-prefork}"
   # Auto-restart the worker when source files change (requires watchdog, dev image)
   exec watchmedo auto-restart --directory=/app/src --pattern='*.py' --recursive -- \
-    celery -A capaggregator.config worker -Q "$queue" -c "$concurrency" \
+    celery -A capaggregator.config worker -Q "$queue" -c "$concurrency" -P "$pool" \
     -l "${CAPAGG_CELERY_WORKER_LOG_LEVEL:-INFO}" -n "$name@%h"
 }
 
@@ -51,6 +51,14 @@ celery-ingestion-worker)
   ;;
 celery-ingestion-worker-dev)
   run_celery_worker_dev capagg-ingestion "${CAPAGG_CELERY_INGESTION_WORKER_CONCURRENCY:-2}" ingestion
+  ;;
+# Polling is ~99% network wait — a gevent pool overlaps the I/O so one process
+# polls the whole authority fleet (celery monkey-patches early for -P gevent)
+celery-polling-worker)
+  run_celery_worker capagg-polling "${CAPAGG_CELERY_POLLING_WORKER_CONCURRENCY:-50}" polling gevent
+  ;;
+celery-polling-worker-dev)
+  run_celery_worker_dev capagg-polling "${CAPAGG_CELERY_POLLING_WORKER_CONCURRENCY:-50}" polling gevent
   ;;
 celery-beat)
   exec celery -A capaggregator.config beat -l INFO \
