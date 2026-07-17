@@ -169,9 +169,10 @@ def sweep_unprocessed(self):
     """Periodic recovery backstop (runs every 5 min; autoretry handles transient
     blips in seconds — this catches killed workers and exhausted retries):
 
-    - messages stuck in 'received' beyond the cutoff re-enter the pipeline
-      (re-execution RESUMES them, see ingest_raw_message; a message swept while
-      legitimately still queued ends as a dedup-absorbed duplicate)
+    - messages stuck in a non-terminal state ('received', 'validated') beyond
+      the cutoff re-enter the pipeline (re-execution RESUMES them, see
+      ingest_raw_message; a message swept while legitimately still queued ends
+      as a dedup-absorbed duplicate)
     - stored alerts that never got lineage-resolved (crash between store and
       resolve) are re-enqueued for resolution so they don't stay invisible in
       resolved state"""
@@ -186,7 +187,7 @@ def sweep_unprocessed(self):
 
     cutoff = timezone.now() - timedelta(minutes=5)
 
-    stuck = RawMessage.objects.filter(state="received", received_at__lt=cutoff)
+    stuck = RawMessage.objects.filter(state__in=["received", "validated"], received_at__lt=cutoff)
     for raw in stuck.iterator():
         logger.info("Sweeping stuck raw message %s", raw.id)
         ingest_raw_message.delay(transport=raw.transport, xml=raw.xml, topic=raw.topic,
