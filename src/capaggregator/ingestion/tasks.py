@@ -166,19 +166,36 @@ def ingest_raw_message(self, transport: str, xml: str, topic: str = "", authorit
 
 @shared_task(bind=True, acks_late=True)
 def sweep_unprocessed(self):
-    """Periodic recovery: re-run messages stuck in 'received' (worker died mid-task)."""
+    """Periodic recovery backstop (runs every 5 min; autoretry handles transient
+    blips in seconds — this catches killed workers and exhausted retries):
+
+    - messages stuck in 'received' beyond the cutoff re-enter the pipeline
+      (re-execution RESUMES them, see ingest_raw_message; a message swept while
+      legitimately still queued ends as a dedup-absorbed duplicate)
+    - stored alerts that never got lineage-resolved (crash between store and
+      resolve) are re-enqueued for resolution so they don't stay invisible in
+      resolved state"""
     from datetime import timedelta
 
     from django.utils import timezone
 
+    from capaggregator.alerts.models import Alert
+    from capaggregator.alerts.tasks import resolve_lineage
+
     from .models import RawMessage
 
-    cutoff = timezone.now() - timedelta(minutes=15)
+    cutoff = timezone.now() - timedelta(minutes=5)
+
     stuck = RawMessage.objects.filter(state="received", received_at__lt=cutoff)
     for raw in stuck.iterator():
         logger.info("Sweeping stuck raw message %s", raw.id)
         ingest_raw_message.delay(transport=raw.transport, xml=raw.xml, topic=raw.topic,
                                  authority_id=raw.authority_id)
+
+    unresolved = Alert.objects.filter(chain__isnull=True, created__lt=cutoff)
+    for alert in unresolved.iterator():
+        logger.info("Sweeping stored-but-unresolved alert %s", alert.id)
+        resolve_lineage.delay(alert.id)
 
 
 @shared_task(bind=True, acks_late=True)
