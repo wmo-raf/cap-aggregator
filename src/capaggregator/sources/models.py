@@ -87,7 +87,7 @@ class SourceAuthority(models.Model):
         help_text=_("RSS/ATOM, sniffed from the feed during the first successful poll (display only)"),
     )
     feed_poll_interval_minutes = models.PositiveIntegerField(
-        default=5,
+        default=1,
         verbose_name=_("Fast poll interval (min)"),
         help_text=_("Used when no push transport is configured or push has gone quiet"),
     )
