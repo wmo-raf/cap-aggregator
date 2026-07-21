@@ -38,6 +38,11 @@ class Alert(models.Model):
     references = models.JSONField(default=list, blank=True,
                                   help_text=_("Parsed list of {sender, identifier, sent} triples"))
     note = models.TextField(blank=True)
+    content_fingerprint = models.CharField(
+        max_length=64, blank=True, db_index=True,
+        help_text=_("sha256 of the CAP body excluding identifier/sent/effective — see "
+                    "alerts.parser.content_fingerprint. Detects an upstream re-issue of the "
+                    "same alert under a fresh identity triple."))
     signature_valid = models.BooleanField(null=True, blank=True)
     validation_warnings = models.JSONField(default=list, blank=True)
     created = models.DateTimeField(auto_now_add=True)

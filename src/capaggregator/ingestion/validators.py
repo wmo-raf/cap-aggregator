@@ -185,3 +185,57 @@ def check_polygons(tree, raw, report):
             if not (-90 <= lat <= 90 and -180 <= lon <= 180):
                 report.error("polygon-sanity", f"coordinate out of range '{pair}'")
                 break
+
+
+@validator_registry.register("reissue")
+def check_reissue(tree, raw, report):
+    """Quarantine an alert that repeats content we already hold under a different
+    identity triple.
+
+    A publisher that re-serializes an already-disseminated alert with a fresh
+    <sent> — and, where <identifier> is derived from <sent>, a fresh identifier —
+    looks like a brand-new alert to every layer below us: the byte hash differs,
+    the identity triple differs, and with no <references> the lineage resolver has
+    nothing to join on. The result is two live ResolvedAlert rows for one hazard.
+
+    Deliberate supersession (<references> present) is exempt — that is what
+    msgType Update/Cancel is for, and lineage handles it correctly.
+    """
+    from datetime import datetime, timedelta
+
+    from django.conf import settings
+
+    from capaggregator.alerts.models import Alert
+    from capaggregator.alerts.parser import fingerprint_tree
+
+    if raw.authority is None:
+        return  # unattributable; the sender check has already errored
+    if (tree.findtext(f"{CAP}references") or "").strip():
+        return
+
+    fingerprint = fingerprint_tree(tree)
+    if not fingerprint:
+        return
+
+    sent = (tree.findtext(f"{CAP}sent") or "").strip()
+    try:
+        sent_dt = datetime.fromisoformat(sent)
+    except ValueError:
+        return
+
+    window = timedelta(minutes=getattr(settings, "CAP_REISSUE_WINDOW_MINUTES", 60))
+    prior = Alert.objects.filter(
+        authority=raw.authority,
+        content_fingerprint=fingerprint,
+        sent__gte=sent_dt - window,
+        sent__lte=sent_dt + window,
+    ).exclude(sent=sent_dt).order_by("sent").first()
+
+    if prior is not None:
+        report.error(
+            "reissue",
+            f"content identical to alert #{prior.pk} ({prior.identifier}, sent {prior.sent.isoformat()}) "
+            f"but re-sent as {(tree.findtext(f'{CAP}identifier') or '').strip()} at {sent} with no "
+            f"<references> to it. Either the publisher re-saved an already-disseminated alert "
+            f"(upstream bug) or it should have issued msgType=Update.",
+        )

@@ -296,6 +296,14 @@ CAPAGG_SECRET_KEY = env("CAPAGG_SECRET_KEY", default="")
 MOSQUITTO_AUTH_DIR = env("MOSQUITTO_AUTH_DIR", default="/mosquitto-config")
 MOSQUITTO_UID = env.int("MOSQUITTO_UID", default=1883)  # mosquitto user in eclipse-mosquitto image
 
+# --- Ingestion ---
+# How far apart two byte-different messages carrying identical CAP content may be
+# and still be treated as the same alert re-issued (→ quarantined for review,
+# see ingestion.validators.check_reissue) rather than two distinct hazards.
+# Kept short: the upstream re-save bug this guards against moves <sent> by minutes,
+# while an authority legitimately re-issuing identical content does so much later.
+CAP_REISSUE_WINDOW_MINUTES = env.int("CAP_REISSUE_WINDOW_MINUTES", default=60)
+
 # --- DRF ---
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
