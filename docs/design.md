@@ -257,7 +257,7 @@ GET /tiles/alerts/{z}/{x}/{y}
 `tstzrange(effective, expires) @> t` plus filters, chooses `geom_z5/geom_z8/geom` by zoom, and
 returns `ST_AsMVT` with two layers: `alerts` (fills) and `alert_centroids` (symbols at low zoom).
 Styling is entirely client-side via MapLibre data-driven expressions — one tileset serves every
-severity/urgency/certainty variant. Animation = the client stepping `t`; rounding `t` to 5-minute
+severity/urgency/certainty variant. Animation = the client stepping `t`; rounding `t` to 1-minute
 buckets makes tile URLs cacheable (nginx proxy cache, CDN later). Deep-history scrubbing can later
 switch to nightly PMTiles snapshots.
 

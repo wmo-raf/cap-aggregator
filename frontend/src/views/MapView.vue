@@ -192,7 +192,7 @@ onMounted(async () => {
   refreshList(true);
   refreshGlobalCount();
 
-  // Live mode pins `t` to the current 5-minute bucket, so a map left open must
+  // Live mode pins `t` to the current 1-minute bucket, so a map left open must
   // follow the bucket forward or it keeps showing its first render
   stopBucketWatch = watchBucket(() => {
     if (selectedTime.value === null) {

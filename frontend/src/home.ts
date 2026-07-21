@@ -184,7 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   applyAlertVisibility(); // hide anything that expired since the server render
 
-  // Live mode pins `t` to the current 5-minute bucket — follow it forward so a
+  // Live mode pins `t` to the current 1-minute bucket — follow it forward so a
   // homepage left open doesn't keep showing its first tile render
   watchBucket(() => {
     if (selectedTime === null) {

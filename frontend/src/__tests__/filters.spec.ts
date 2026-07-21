@@ -55,7 +55,7 @@ describe("alert filters", () => {
 
     expect(tileQueryFromFilters(filters, t)).toEqual({
       status: "Actual",
-      t: "2026-07-15T10:00:00.000Z",
+      t: "2026-07-15T10:03:00.000Z",
       severity: "Severe",
       country: "ke",
     });
@@ -72,10 +72,10 @@ describe("alert filters", () => {
     // right, and only cold (deep-zoom) tiles showed the truth.
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-15T10:07:30Z"));
-    expect(tileQueryFromFilters(emptyFilters(), null).t).toBe("2026-07-15T10:05:00.000Z");
+    expect(tileQueryFromFilters(emptyFilters(), null).t).toBe("2026-07-15T10:07:00.000Z");
 
     vi.setSystemTime(new Date("2026-07-15T10:12:01Z")); // next bucket, new URL
-    expect(tileQueryFromFilters(emptyFilters(), null).t).toBe("2026-07-15T10:10:00.000Z");
+    expect(tileQueryFromFilters(emptyFilters(), null).t).toBe("2026-07-15T10:12:00.000Z");
     vi.useRealTimers();
   });
 
