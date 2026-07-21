@@ -2,6 +2,13 @@ listen_addresses: "0.0.0.0:3000"
 
 route_prefix: /tiles
 
+# Martin's in-memory tile cache (256 MB by default) is an LRU with no TTL: an
+# entry lives until eviction or a restart, so any hot tile URL freezes at its
+# first render — expired alerts stayed on the map for days. Tile freshness is
+# nginx's job instead (proxy_cache_valid 5m, matching the clients' 5-minute `t`
+# bucket); Postgres re-renders on every miss.
+cache_size_mb: 0
+
 postgres:
   connection_string: "${DATABASE_URL}"
   auto_publish: false  # only expose explicitly listed sources

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { nextStep, roundToBucket, timeFromQuery, timeToQuery } from "@/lib/timeControl";
+import { nextStep, roundToBucket, tileTime, timeFromQuery, timeToQuery, watchBucket } from "@/lib/timeControl";
 
 describe("time control", () => {
   it("floors timestamps to 5-minute buckets (nginx tile-cache alignment)", () => {
@@ -27,6 +27,34 @@ describe("time control", () => {
     expect(timeToQuery(null)).toEqual({});
     expect(timeFromQuery({})).toBeNull();
     expect(timeFromQuery({ t: "not-a-date" })).toBeNull();
+  });
+
+  it("gives every tile request an explicit instant, live mode included", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T10:07:30Z"));
+
+    expect(tileTime(null)).toBe("2026-07-15T10:05:00.000Z"); // live = current bucket, never absent
+    expect(tileTime(new Date("2026-07-10T12:34:56Z"))).toBe("2026-07-10T12:30:00.000Z");
+
+    vi.useRealTimers();
+  });
+
+  it("notifies watchers when the bucket rolls over, so live maps re-request tiles", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T10:04:00Z"));
+    const onRoll = vi.fn();
+    const stop = watchBucket(onRoll);
+
+    vi.advanceTimersByTime(30_000); // still 10:04:30, same bucket
+    expect(onRoll).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(60_000); // 10:05:30 — new bucket
+    expect(onRoll).toHaveBeenCalledTimes(1);
+
+    stop();
+    vi.advanceTimersByTime(10 * 60_000); // unsubscribed: no further calls
+    expect(onRoll).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it("steps time forward by the given minutes", () => {

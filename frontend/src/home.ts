@@ -4,9 +4,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { ALERTS_SOURCE_ID, alertLayers } from "@/lib/alertLayers";
 import { basemapStyleUrl, resolveBasemapId } from "@/lib/basemap";
 import { alertTileUrlTemplate } from "@/lib/config";
+import { emptyFilters, tileQueryFromFilters } from "@/lib/filters";
 import { activeAt, deriveTimeButtons, type TimeButton } from "@/lib/timeButtons";
 import { buildPopupContent, dedupeAlertFeatures } from "@/lib/popup";
-import { roundToBucket } from "@/lib/timeControl";
+import { watchBucket } from "@/lib/timeControl";
 
 // Homepage active-alerts section: a browse-lite MapLibre map (pan + zoom
 // buttons, no scroll hijack) and the per-authority alert list, both driven by
@@ -79,18 +80,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Map (browse-lite) ---
   const isDark = () => document.documentElement.classList.contains("dark");
 
+  // status=Actual and the `t` bucket come from tileQueryFromFilters, the one
+  // builder the explorer map uses too — the two maps drifted apart before
   function tileUrl(): string {
-    const params = new URLSearchParams();
-    // Public current situation: only Actual alerts are real warnings — keep in
-    // sync with the homepage stats/list queries (HomePage.get_context)
-    params.set("status", "Actual");
-    const severities = selectedSeverities();
     // the tile function matches stored capitalized values ("Severe")
-    if (severities.length) {
-      params.set("severity", severities.map((s) => s[0].toUpperCase() + s.slice(1)).join(","));
-    }
-    if (selectedTime) params.set("t", roundToBucket(selectedTime).toISOString());
-    return `${alertTileUrlTemplate()}?${params.toString()}`;
+    const severity = selectedSeverities().map((s) => s[0].toUpperCase() + s.slice(1));
+    const query = tileQueryFromFilters({ ...emptyFilters(), severity }, selectedTime);
+    return `${alertTileUrlTemplate()}?${new URLSearchParams(query).toString()}`;
   }
 
   const map = new maplibregl.Map({
@@ -187,4 +183,13 @@ document.addEventListener("DOMContentLoaded", () => {
   );
 
   applyAlertVisibility(); // hide anything that expired since the server render
+
+  // Live mode pins `t` to the current 5-minute bucket — follow it forward so a
+  // homepage left open doesn't keep showing its first tile render
+  watchBucket(() => {
+    if (selectedTime === null) {
+      refreshTiles();
+      applyAlertVisibility();
+    }
+  });
 });

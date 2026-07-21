@@ -24,7 +24,7 @@ import {
   tileQueryFromFilters,
 } from "@/lib/filters";
 import { buildPopupContent, dedupeAlertFeatures } from "@/lib/popup";
-import { roundToBucket, timeFromQuery, timeToQuery } from "@/lib/timeControl";
+import { timeFromQuery, timeToQuery, watchBucket } from "@/lib/timeControl";
 
 const INITIAL_CENTER: [number, number] = [15, 10];
 const INITIAL_ZOOM = 2;
@@ -59,8 +59,7 @@ const selectedTime = ref<Date | null>(timeFromQuery(route.query));
 const timeWindows = ref<{ effective: string | null; expires: string | null }[]>([]);
 
 function tileUrl(): string {
-  const params = new URLSearchParams(tileQueryFromFilters(filters.value));
-  if (selectedTime.value) params.set("t", roundToBucket(selectedTime.value).toISOString());
+  const params = new URLSearchParams(tileQueryFromFilters(filters.value, selectedTime.value));
   const qs = params.toString();
   return qs ? `${alertTileUrlTemplate()}?${qs}` : alertTileUrlTemplate();
 }
@@ -106,6 +105,7 @@ function resetAll() {
 }
 
 let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+let stopBucketWatch: (() => void) | undefined;
 
 function currentBbox(): [number, number, number, number] | null {
   if (!map) return null;
@@ -131,14 +131,18 @@ function refreshList(immediate = false) {
   );
 }
 
+function refreshTiles() {
+  const source = map?.getSource(ALERTS_SOURCE_ID) as maplibregl.VectorTileSource | undefined;
+  source?.setTiles([tileUrl()]);
+}
+
 function syncState() {
   // sync URL: facets + time, preserving anything else
   const query = { ...route.query };
   for (const param of [...FACET_PARAMS, "t"]) delete query[param];
   router.replace({ query: { ...query, ...filtersToRouteQuery(filters.value), ...timeToQuery(selectedTime.value) } });
   // sync tiles + list
-  const source = map?.getSource(ALERTS_SOURCE_ID) as maplibregl.VectorTileSource | undefined;
-  source?.setTiles([tileUrl()]);
+  refreshTiles();
   refreshList(true);
 }
 
@@ -188,6 +192,15 @@ onMounted(async () => {
   refreshList(true);
   refreshGlobalCount();
 
+  // Live mode pins `t` to the current 5-minute bucket, so a map left open must
+  // follow the bucket forward or it keeps showing its first render
+  stopBucketWatch = watchBucket(() => {
+    if (selectedTime.value === null) {
+      refreshTiles();
+      refreshList();
+    }
+  });
+
   try {
     timeWindows.value = await fetchAlertWindows();
   } catch {
@@ -208,6 +221,7 @@ onMounted(async () => {
 onUnmounted(() => {
   clearTimeout(refreshTimer);
   clearTimeout(settleTimer);
+  stopBucketWatch?.();
   window.removeEventListener("resize", onWindowResize);
   map?.remove();
   map = null;
