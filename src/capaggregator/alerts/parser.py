@@ -35,6 +35,60 @@ def parse_identity(xml: str) -> dict | None:
     return {"sender": sender, "identifier": identifier, "sent": sent}
 
 
+# CAP elements that legitimately differ between two serializations of the SAME
+# alert, and so must not enter the content fingerprint:
+#   sent        — cap-composer re-stamps <sent> to now() on every full save of the
+#                 alert page, including the saves its own post-publish multimedia
+#                 task makes (cap/models.py save(), cap/utils.py)
+#   identifier  — derived from <sent> when the authority has a WMO OID configured,
+#                 so it moves whenever <sent> does
+#   effective   — defaults to <sent> when the author leaves it blank
+#   references  — an Update carries them; the message it supersedes does not
+#   Signature   — signs identifier/sent, so it moves with them
+VOLATILE_ELEMENTS = frozenset({"identifier", "sent", "effective", "references", "Signature"})
+
+
+def content_fingerprint(xml: str) -> str:
+    """sha256 over the *semantic* CAP content, ignoring the elements above.
+
+    Two messages sharing a fingerprint describe the same hazard, the same area
+    and the same validity window — they are the same alert re-issued, regardless
+    of what identifier the publisher stamped on them. Returns "" when the XML is
+    unparseable (validation reports that separately)."""
+    try:
+        tree = etree.fromstring(xml.encode())
+    except etree.XMLSyntaxError:
+        return ""
+    return fingerprint_tree(tree)
+
+
+def fingerprint_tree(tree) -> str:
+    """`content_fingerprint` for callers that already hold a parsed tree
+    (the validators, which are handed one)."""
+    import hashlib
+    import json
+
+    canonical = _canonical(tree)
+    if canonical is None:
+        return ""
+    payload = json.dumps(canonical, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _canonical(el) -> list | None:
+    """[localname, text, [sorted children]] — or None for volatile/non-element
+    nodes. Children are sorted and whitespace stripped so that element ordering
+    and pretty-printing differences between publishers (or between a signed and
+    an unsigned serialization of the same alert) do not change the hash."""
+    if not isinstance(el.tag, str):  # comment / processing instruction
+        return None
+    name = etree.QName(el).localname
+    if name in VOLATILE_ELEMENTS:
+        return None
+    children = sorted(c for c in (_canonical(child) for child in el) if c is not None)
+    return [name, (el.text or "").strip(), children]
+
+
 def parse_and_store(raw, warnings: list | None = None):
     """Create the Alert graph from a RawMessage. Returns the Alert."""
     from .models import Alert, AlertArea, AlertInfo
@@ -52,6 +106,7 @@ def parse_and_store(raw, warnings: list | None = None):
         scope=_text(tree, "scope"),
         references=_parse_references(_text(tree, "references")),
         note=_text(tree, "note"),
+        content_fingerprint=content_fingerprint(raw.xml),
         validation_warnings=warnings or [],
     )
 
