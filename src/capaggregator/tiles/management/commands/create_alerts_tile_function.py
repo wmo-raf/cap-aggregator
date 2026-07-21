@@ -19,7 +19,7 @@ Two MVT layers per tile:
   - alert_centroids centroid points for low-zoom symbols
 
 Animation = the client stepping `t` and re-requesting tiles; round `t` to
-5-minute buckets client-side so tile URLs hit the nginx proxy cache.
+1-minute buckets client-side so tile URLs hit the nginx proxy cache.
 
 Usage:
     capagg create_alerts_tile_function

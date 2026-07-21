@@ -21,7 +21,7 @@ MANAGE = capagg
 	dev-app-logs dev-worker-default-logs dev-worker-ingestion-logs dev-worker-polling-logs dev-beat-logs dev-consumer-logs \
 	dev-shell dev-worker-default-shell dev-worker-ingestion-shell dev-worker-polling-shell \
 	dev-migrate dev-makemigrations dev-createsuperuser dev-sync-mosquitto dev-create-tile-function dev-test \
-	dev-test-js dev-vite-logs
+	dev-test-js dev-test-tiles check-tile-freshness dev-vite-logs
 
 # ======================
 # PRODUCTION
@@ -76,6 +76,11 @@ sync-mosquitto:
 
 create-tile-function:
 	$(DC) exec $(APP) $(MANAGE) create_alerts_tile_function
+
+# Integration check against the running Martin: does an unchanged tile URL still
+# track the database? (unit tests can't — Django's test DB is invisible to Martin)
+check-tile-freshness:
+	$(DC) exec $(APP) $(MANAGE) check_tile_freshness
 
 # ======================
 # DEV
@@ -158,6 +163,10 @@ dev-test:
 	$(DEV_DC) exec \
 	  -e "DATABASE_URL=postgis://$$DB_USER:$$DB_PASSWORD@capagg-db:5432/$$DB_NAME" \
 	  $(APP) $(MANAGE) test --keepdb $(TEST_ARGS)
+
+# Integration check against the running Martin — see check-tile-freshness
+dev-test-tiles:
+	$(DEV_DC) exec $(APP) $(MANAGE) check_tile_freshness
 
 # Vitest (explorer SPA) — companion to dev-test
 dev-test-js:

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   emptyFilters,
@@ -51,12 +51,32 @@ describe("alert filters", () => {
 
   it("maps filters to Martin tile query params (CSV, empty facets omitted)", () => {
     const filters = { ...emptyFilters(), severity: ["Severe"], country: ["ke"] };
+    const t = new Date("2026-07-15T10:03:00Z");
 
-    expect(tileQueryFromFilters(filters)).toEqual({ status: "Actual", severity: "Severe", country: "ke" });
+    expect(tileQueryFromFilters(filters, t)).toEqual({
+      status: "Actual",
+      t: "2026-07-15T10:03:00.000Z",
+      severity: "Severe",
+      country: "ke",
+    });
   });
 
   it("always pins the tile query to Actual status — the map must match the search API's public default", () => {
-    expect(tileQueryFromFilters(emptyFilters())).toEqual({ status: "Actual" });
+    expect(tileQueryFromFilters(emptyFilters(), null).status).toBe("Actual");
+  });
+
+  it("always carries a `t`, live mode included — a time-invariant tile URL is cached forever", () => {
+    // Regression: with no `t` the live tile URL never changes, so Martin's
+    // TTL-less in-memory cache pinned one render of "now" — alerts that had
+    // expired days earlier kept rendering while the server-rendered list was
+    // right, and only cold (deep-zoom) tiles showed the truth.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-15T10:07:30Z"));
+    expect(tileQueryFromFilters(emptyFilters(), null).t).toBe("2026-07-15T10:07:00.000Z");
+
+    vi.setSystemTime(new Date("2026-07-15T10:12:01Z")); // next bucket, new URL
+    expect(tileQueryFromFilters(emptyFilters(), null).t).toBe("2026-07-15T10:12:00.000Z");
+    vi.useRealTimers();
   });
 
   it("builds /api/search/ params from filters plus the viewport bbox", () => {

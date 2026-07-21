@@ -61,6 +61,7 @@ make dev-up                 # foreground (dev-up-d for detached)
 make dev-createsuperuser
 make dev-test               # pytest inside the app container
 make dev-test-js            # Vitest for the explorer SPA (frontend/)
+make dev-test-tiles         # integration check against the running Martin (see below)
 make dev-shell              # bash in the app container
 make dev-migrate            # or dev-makemigrations
 make dev-create-tile-function   # (re)create the Martin tile function
@@ -71,6 +72,16 @@ App at http://localhost:8000 (admin `/admin`, health `/health/`); Martin at :300
 Production targets (`make build && make up`) run gunicorn with no source mounts.
 Run `ruff check src/` for lint. Mosquitto auth syncs automatically on authority
 save — `make dev-sync-mosquitto` is only for bootstrap/repair.
+
+Tile behaviour needs a *running* Martin to test: Django's test database is
+invisible to Martin (it holds its own connection to the application database),
+so `manage.py test` can only assert the tile URL a client builds, never what the
+tile server returns. `make dev-test-tiles` (`check_tile_freshness`, or
+`make check-tile-freshness` in production) closes that gap — it writes a
+status=Test probe alert into the real database, requests one tile URL, expires
+the alert, requests the *same* URL, and fails if the second response still
+contains it. Run it after touching the tile function, Martin's config, or any
+caching in front of `/tiles/`.
 
 ## Additional documentation
 

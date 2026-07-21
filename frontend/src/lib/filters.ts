@@ -1,6 +1,6 @@
 import type { LocationQuery } from "vue-router";
 
-import { roundToBucket } from "@/lib/timeControl";
+import { roundToBucket, tileTime } from "@/lib/timeControl";
 
 /**
  * The map/table facet filter state and its serializations — one source of
@@ -63,9 +63,11 @@ export function filtersFromRouteQuery(query: LocationQuery | Record<string, unkn
 
 /** Martin tile URL query params (the tile function reads them as query_params).
  * Always pins status=Actual: the tile function has no default, and the map must
- * agree with the search API's public default (Exercise/Test never render). */
-export function tileQueryFromFilters(filters: AlertFilters): Record<string, string> {
-  return { status: "Actual", ...filtersToRouteQuery(filters) };
+ * agree with the search API's public default (Exercise/Test never render).
+ * Always pins `t` too — including live mode — so the URL is never time-invariant
+ * and the tile caches can't serve one render of "now" forever (see tileTime). */
+export function tileQueryFromFilters(filters: AlertFilters, time: Date | null): Record<string, string> {
+  return { status: "Actual", t: tileTime(time), ...filtersToRouteQuery(filters) };
 }
 
 /** /api/search/ params: the facets, the viewport bbox and the selected time. */
