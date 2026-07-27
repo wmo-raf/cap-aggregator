@@ -62,6 +62,14 @@ class CheckCategoryCoverageTests(SimpleTestCase):
             "checks that report findings without a category mapping",
         )
 
+    def test_every_withholding_check_is_a_real_check(self):
+        # A typo in WITHHOLDING_CHECKS would silently publish something we mean
+        # to keep back, and nothing else would fail.
+        self.assertEqual(
+            sorted(categories.WITHHOLDING_CHECKS - set(categories.CHECK_CATEGORIES)), [],
+            "withholding checks that no check produces",
+        )
+
     def test_the_mapping_covers_all_seven_categories(self):
         self.assertEqual(
             set(categories.CHECK_CATEGORIES.values()), set(categories.CATEGORY_PRECEDENCE),

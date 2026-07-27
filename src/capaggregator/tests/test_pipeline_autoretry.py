@@ -12,7 +12,7 @@ from capaggregator.alerts import parser
 from capaggregator.alerts.models import Alert
 from capaggregator.ingestion.models import DeliveryReceipt, RawMessage
 from capaggregator.ingestion.tasks import ingest_raw_message
-from capaggregator.tests.cap_samples import cap_alert_xml
+from capaggregator.tests.cap_samples import NOT_WELL_FORMED_XML, cap_alert_xml
 from capaggregator.tests.factories import create_source_authority
 
 
@@ -54,8 +54,7 @@ class IngestAutoretryTests(TestCase):
 
     def test_validation_failure_quarantines_once_without_retrying(self):
         result = ingest_raw_message.apply(
-            kwargs=dict(transport="manual", xml=cap_alert_xml(sender="unregistered@x.test"),
-                        authority_id=self.authority.id)
+            kwargs=dict(transport="manual", xml=NOT_WELL_FORMED_XML, authority_id=self.authority.id)
         )
 
         self.assertTrue(result.successful())

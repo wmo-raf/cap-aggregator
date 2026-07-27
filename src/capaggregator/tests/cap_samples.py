@@ -8,6 +8,11 @@ byte-duplicate, same-identity-different-bytes, and Alert→Update→Cancel cases
 
 DEFAULT_SENDER = "sender@example.test"
 
+# The cheapest message the pipeline cannot publish: with no tree there is
+# nothing to store, so it is what every test needing a withheld message reaches
+# for when *why* it was withheld is not the point.
+NOT_WELL_FORMED_XML = "<alert>truncated"
+
 
 def cap_alert_xml(
     *,
@@ -35,13 +40,16 @@ def cap_alert_xml(
     both are schema-valid, so they exercise the semantic rules rather than XSD.
     `altitude` is emitted verbatim, so a non-numeric value produces the XSD
     violation that dominates the real backlog (a department name where the
-    schema wants a decimal)."""
+    schema wants a decimal). `polygon` takes a list for an area carrying several
+    shapes — one sound, one malformed, say."""
     references_el = f"    <references>{references}</references>\n" if references else ""
     altitude_el = f"            <altitude>{altitude}</altitude>\n" if altitude is not None else ""
+    polygons = [polygon] if isinstance(polygon, str) else polygon
+    polygon_els = "".join(f"            <polygon>{p}</polygon>\n" for p in polygons)
     area_el = (
         "        <area>\n"
         "            <areaDesc>Nairobi</areaDesc>\n"
-        f"            <polygon>{polygon}</polygon>\n"
+        f"{polygon_els}"
         f"{altitude_el}"
         "        </area>\n"
     ) if area else ""

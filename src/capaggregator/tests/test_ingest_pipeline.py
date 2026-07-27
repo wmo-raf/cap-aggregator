@@ -61,11 +61,6 @@ class IngestPipelineTests(TestCase):
         self.assertGreater(len(info.audience), 255)
         self.assertGreater(len(info.headline), 512)
 
-    def test_populated_sender_allowlist_still_quarantines_a_mismatched_sender(self):
-        result = ingest_raw_message(
-            transport="manual", xml=cap_alert_xml(sender="unregistered@x.test"), authority_id=self.authority.id
-        )
-
-        self.assertEqual(result["state"], "quarantined")
-        raw = RawMessage.objects.get(id=result["raw_id"])
-        self.assertEqual(raw.state, "quarantined")
+    # A <sender> outside a populated allow-list no longer withholds the message —
+    # it publishes with an identity defect. That policy, and every other
+    # publish-with-defects outcome, is covered in test_publish_with_defects.

@@ -3,7 +3,7 @@
 Each validator receives the parsed lxml tree + context and appends findings to
 the report. Validation is a conformance record, not a publication gate: a
 finding is a defect recorded against the published alert unless it is one of the
-few that make publishing impossible or dishonest (`DEFECT_ONLY_CHECKS` draws
+few that make publishing impossible or dishonest (`WITHHOLDING_CHECKS` draws
 that line; `blocking_findings()` applies it).
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from lxml import etree
 
-from .categories import CHECK_INTERNAL, DEFECT_ONLY_CHECKS, classify_report
+from .categories import CHECK_INTERNAL, WITHHOLDING_CHECKS, classify_report
 
 CAP_NS = "urn:oasis:names:tc:emergency:cap:1.2"
 CAP = f"{{{CAP_NS}}}"
@@ -37,10 +37,10 @@ class ValidationReport:
     def blocking_findings(self) -> list[dict]:
         """The errors that withhold publication.
 
-        Everything else — a schema violation we can store and serve around — is
-        recorded against the alert we publish instead.
+        Everything else — a fault we can store and serve around — is recorded
+        against the alert we publish instead.
         """
-        return [e for e in self.errors if e["check"] not in DEFECT_ONLY_CHECKS]
+        return [e for e in self.errors if e["check"] in WITHHOLDING_CHECKS]
 
     def blocking_category(self) -> str:
         """The category to file a withheld message under.
@@ -83,18 +83,26 @@ class ValidatorRegistry:
 
     def run_all(self, tree, raw, report: ValidationReport):
         for name, fn in self._validators.items():
-            try:
-                fn(tree, raw, report)
-            except Exception as ex:  # a broken rule must not kill the pipeline
-                # Recorded against `internal`, not against the rule's own check
-                # name: a crash in our code is our fault, and filing it under
-                # (say) polygon-sanity would report our bug to an NMHS as a
-                # defect in their CAP. Still a warning, so a crashing rule
-                # never withholds a message that would otherwise publish.
-                report.warn(CHECK_INTERNAL, f"validator '{name}' crashed: {ex}")
+            run_check(name, fn, tree, raw, report)
 
 
 validator_registry = ValidatorRegistry()
+
+
+def run_check(name: str, fn, tree, raw, report: ValidationReport):
+    """Run one check; a crash in it costs the operator that rule, nothing more.
+
+    A crash is recorded against `internal`, not against the rule's own check
+    name: our bug filed under (say) polygon-sanity would be reported to an NMHS
+    as a defect in their CAP. It is an error rather than a warning — a warning
+    would disguise our bug as a minor conformance defect belonging to them —
+    but `internal` never withholds, so a broken rule cannot cost an alert its
+    publication either.
+    """
+    try:
+        fn(tree, raw, report)
+    except Exception as ex:
+        report.error(CHECK_INTERNAL, f"validator '{name}' crashed: {ex}")
 
 
 def run_validators(raw) -> ValidationReport:
@@ -117,14 +125,12 @@ def run_validators(raw) -> ValidationReport:
         for err in schema.error_log:
             report.error("xsd", f"line {err.line}: {err.message}")
 
-    # 3. The one schema fault we cannot publish through
-    _check_sent(tree, raw, report)
-
-    # 4. Signature (policy per authority)
-    _check_signature(tree, raw, report)
-
-    # 5. Identity: sender must match the authority bound to the topic/token
-    _check_sender(tree, raw, report)
+    # 3-5. The directly-invoked checks. They see schema-invalid trees now, so
+    #      they carry the same crash guard as the registry: a bug in one must
+    #      never cost the operator the rest of the report.
+    run_check("sent-parseable", _check_sent, tree, raw, report)
+    run_check("signature", _check_signature, tree, raw, report)
+    run_check("sender", _check_sender, tree, raw, report)
 
     # 6. Semantic rules (registry)
     validator_registry.run_all(tree, raw, report)
@@ -173,13 +179,22 @@ def _check_signature(tree, raw, report):
 
 
 def _check_sender(tree, raw, report):
+    """Two different questions, so two different checks.
+
+    `attribution` — can we say who sent this at all? An Alert requires a
+    non-null authority, so a message no transport could attribute cannot be
+    stored, and it stays unpublished.
+
+    `sender` — is the <sender> one this authority told us to expect? Attribution
+    already came from the transport (MQTT topic, webhook token, polled feed
+    URL), so the allow-list is our configuration rather than a statement about
+    the content: a mismatch is a defect on a published alert.
+    """
     if not raw.authority:
-        report.error("sender", "message could not be attributed to a registered authority")
+        report.error("attribution", "message could not be attributed to a registered authority")
         return
     if not raw.authority.sender_values:
-        # No allow-list configured — attribution already comes from the
-        # transport (MQTT topic, webhook token, or polled feed URL), so any
-        # <sender> is accepted.
+        # No allow-list configured — any <sender> is accepted.
         return
     sender = tree.findtext(f"{CAP}sender", default="")
     if sender not in raw.authority.sender_values:
@@ -199,9 +214,12 @@ def check_references(tree, raw, report):
 
 @validator_registry.register("expires-required")
 def check_expires(tree, raw, report):
+    # An error, not a warning: the alert publishes either way, but its active
+    # window then comes from our default rather than from the author, which is a
+    # real defect in the message and worth reporting as one.
     for info in tree.findall(f"{CAP}info"):
         if not (info.findtext(f"{CAP}expires") or "").strip():
-            report.warn("expires-required", "info block without <expires> — cannot compute active window")
+            report.error("expires-required", "info block without <expires> — cannot compute active window")
 
 
 @validator_registry.register("area-for-actual-public")

@@ -18,7 +18,7 @@ from capaggregator.alerts.models import Alert, ResolvedAlert
 from capaggregator.alerts.parser import content_fingerprint
 from capaggregator.ingestion.models import QuarantinedMessage
 from capaggregator.ingestion.tasks import ingest_raw_message
-from capaggregator.tests.cap_samples import cap_alert_xml
+from capaggregator.tests.cap_samples import NOT_WELL_FORMED_XML, cap_alert_xml
 from capaggregator.tests.factories import create_source_authority
 
 OID_PREFIX = "2.49.0.0.404.0"
@@ -126,4 +126,4 @@ class ContentFingerprintTests(TestCase):
         self.assertEqual(content_fingerprint(pretty), content_fingerprint(compact))
 
     def test_unparseable_xml_yields_no_fingerprint(self):
-        self.assertEqual(content_fingerprint("<alert>truncated"), "")
+        self.assertEqual(content_fingerprint(NOT_WELL_FORMED_XML), "")

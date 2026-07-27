@@ -12,7 +12,7 @@ from django.test import TestCase
 from task_ferry.handler import JobHandler
 
 from capaggregator.ingestion.models import CapBackfillJob, QuarantinedMessage
-from capaggregator.tests.cap_samples import cap_alert_xml
+from capaggregator.tests.cap_samples import NOT_WELL_FORMED_XML, cap_alert_xml
 from capaggregator.tests.factories import create_source_authority
 
 
@@ -43,7 +43,7 @@ class BackfillJobTests(TestCase):
         zip_path = self.tmp / "batch.zip"
         with zipfile.ZipFile(zip_path, "w") as archive:
             archive.writestr("good.xml", cap_alert_xml(identifier="GOOD-1"))
-            archive.writestr("bad.xml", cap_alert_xml(identifier="BAD-1", sender="unregistered@evil.test"))
+            archive.writestr("bad.xml", NOT_WELL_FORMED_XML)
 
         job = self._run_backfill(zip_path)
 

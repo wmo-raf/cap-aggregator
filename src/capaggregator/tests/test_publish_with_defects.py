@@ -31,6 +31,15 @@ from capaggregator.tests.factories import create_source_authority
 # messages reach us with.
 UNCLOSED_RING = "-1.30,36.80 -1.30,36.90 -1.20,36.90 -1.20,36.80"
 
+# Enough to reach the verification branch and fail it, without minting a key
+# pair: the check needs a <Signature> element and a configured certificate, and
+# anything that does not verify against that certificate takes the same path.
+UNVERIFIABLE_CERT_PEM = "-----BEGIN CERTIFICATE-----\nnot-a-real-certificate\n-----END CERTIFICATE-----"
+
+
+def _with_bogus_signature(xml: str) -> str:
+    return xml.replace("</alert>", '    <Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/>\n</alert>')
+
 
 def _cap_time(moment) -> str:
     """A CAP 1.2 dateTime: seconds resolution and an explicit offset, which is
@@ -192,17 +201,100 @@ class OneIngestionReportsEverythingTests(TestCase):
         defects = Alert.objects.get(id=result["alert_id"]).defects.all()
         self.assertEqual({d.check_name for d in defects}, {"xsd", "polygon-sanity"})
 
-    def test_a_withheld_message_reports_its_schema_findings_too(self):
-        # An Update with no <references> still withholds; the schema fault that
-        # comes with it is reported in the same pass rather than being the only
-        # thing the operator is told about.
+    def test_a_withheld_message_reports_its_other_findings_too(self):
+        # An unsigned message still withholds under a `require` policy; the
+        # schema and lineage faults that come with it are reported in the same
+        # pass rather than waiting for the signature to be fixed first.
+        strict = create_source_authority(name="Strict Met", country="ug", signature_policy="require",
+                                         feed_url="https://strict.test/rss.xml")
         xml = cap_alert_xml(msg_type="Update", sent="2026-07-07T12:00:00.500+00:00")
 
-        result = ingest_raw_message(transport="manual", xml=xml, authority_id=self.authority.id)
+        result = ingest_raw_message(transport="manual", xml=xml, authority_id=strict.id)
 
         self.assertEqual(result["state"], "quarantined")
         message = QuarantinedMessage.objects.get(raw_message_id=result["raw_id"])
-        self.assertEqual({e["check"] for e in message.report["errors"]}, {"xsd", "references-required"})
+        self.assertEqual({e["check"] for e in message.report["errors"]},
+                         {"xsd", "signature", "references-required"})
         # Classified by why it was withheld: a defect we would have published
         # through must never read as the reason we refused.
-        self.assertEqual(message.primary_category, categories.LINEAGE)
+        self.assertEqual(message.primary_category, categories.SIGNATURE)
+
+
+class SemanticDefectsArePublishedTests(TestCase):
+    """Everything the aggregator can store and serve around is published with
+    its findings recorded — only content we cannot authenticate, cannot
+    attribute, or that duplicates a live alert is kept back."""
+
+    def setUp(self):
+        self.authority = create_source_authority(name="Kenya Met", sender_values=["registered@met.ke"])
+
+    def _store(self, xml, authority=None):
+        with patch("capaggregator.alerts.tasks.resolve_lineage.delay"):
+            result = ingest_raw_message(transport="manual", xml=xml,
+                                        authority_id=(authority or self.authority).id)
+        self.assertEqual(result["state"], "stored", result)
+        return Alert.objects.get(id=result["alert_id"])
+
+    def _defect(self, alert, check):
+        return alert.defects.get(check_name=check)
+
+    def test_a_sender_outside_the_allow_list_publishes_with_an_identity_defect(self):
+        # Attribution already came from the transport (MQTT topic, webhook
+        # token, polled feed URL); the allow-list is our configuration, not a
+        # statement about the content.
+        alert = self._store(cap_alert_xml(sender="new-office@met.ke"))
+
+        self.assertEqual(self._defect(alert, "sender").category, categories.IDENTITY)
+        self.assertEqual(alert.sender, "new-office@met.ke")
+
+    def test_an_update_without_references_publishes_with_a_lineage_defect(self):
+        alert = self._store(cap_alert_xml(sender="registered@met.ke", msg_type="Update"))
+
+        self.assertEqual(self._defect(alert, "references-required").category, categories.LINEAGE)
+
+    def test_an_actual_public_alert_without_an_area_publishes_with_a_content_defect(self):
+        alert = self._store(cap_alert_xml(sender="registered@met.ke", area=False))
+
+        self.assertEqual(self._defect(alert, "area-for-actual-public").category, categories.CONTENT)
+
+    def test_a_missing_expires_publishes_with_a_defect_recorded(self):
+        alert = self._store(cap_alert_xml(sender="registered@met.ke", expires=None))
+
+        self.assertEqual(self._defect(alert, "expires-required").category, categories.CONTENT)
+
+    def test_one_malformed_polygon_among_several_keeps_the_shapes_that_parsed(self):
+        good = "-1.30,36.80 -1.30,36.90 -1.20,36.90 -1.20,36.80 -1.30,36.80"
+        malformed = "-1.30,36.80 not-a-pair -1.20,36.90 -1.30,36.80"
+
+        alert = self._store(cap_alert_xml(sender="registered@met.ke", polygon=[good, malformed]))
+
+        area = AlertArea.objects.get(info__alert=alert)
+        self.assertIsNotNone(area.geom, "partial data loss must not become total data loss")
+        self.assertEqual(area.geom.num_geom, 1, "only the shape that parsed is stored")
+        self.assertEqual(self._defect(alert, "polygon-sanity").category, categories.CONTENT)
+
+    def test_a_signature_failure_under_verify_if_present_publishes_with_a_signature_defect(self):
+        signed = create_source_authority(
+            name="Signing Met", country="ug", sender_values=[],
+            signature_policy="verify_if_present", certificate_pem=UNVERIFIABLE_CERT_PEM,
+            feed_url="https://signing.test/rss.xml",
+        )
+
+        alert = self._store(_with_bogus_signature(cap_alert_xml()), authority=signed)
+
+        defect = self._defect(alert, "signature")
+        self.assertEqual(defect.category, categories.SIGNATURE)
+        self.assertEqual(defect.severity, AlertDefect.WARNING)
+
+    def test_faults_in_several_categories_all_reach_the_register(self):
+        alert = self._store(cap_alert_xml(
+            sender="new-office@met.ke",      # identity
+            msg_type="Update",               # lineage
+            altitude="Zou",                  # schema
+            expires=None,                    # content
+        ))
+
+        self.assertEqual(
+            {d.category for d in alert.defects.all()},
+            {categories.SCHEMA, categories.IDENTITY, categories.LINEAGE, categories.CONTENT},
+        )

@@ -47,6 +47,7 @@ CHECK_CATEGORIES = {
     "sent-parseable": SCHEMA,
     "datetime-format": CONTENT,
     "field-length": CONTENT,
+    "attribution": IDENTITY,
     "sender": IDENTITY,
     "signature": SIGNATURE,
     "reissue": REISSUE,
@@ -58,19 +59,24 @@ CHECK_CATEGORIES = {
 }
 
 
-# Checks whose errors are recorded against a *published* alert instead of
-# withholding it. The authority already published the alert on their own site and
-# feed, and a schema violation we can store and serve around is a conformance
-# defect, not a reason to be the only place the warning is missing.
+# The only checks whose errors keep a message unpublished. Every other finding
+# is recorded as a defect against the alert we publish: the authority already
+# published it on their own site and feed, so withholding it over a fault we can
+# store and serve around makes us the only place the warning is missing.
 #
-# `xml-syntax` and `sent-parseable` are deliberately absent although they are
-# `schema` too: without a tree there is nothing to store, and without a readable
-# <sent> the CAP identity triple cannot be formed.
+# Each entry earns its place by making publication impossible or dishonest:
+#   xml-syntax     — no tree, so no Alert can exist
+#   attribution    — an Alert requires a non-null authority
+#   sent-parseable — the CAP identity triple cannot be formed without <sent>
+#   signature      — errors here come only from a `require` policy, where we
+#                    cannot show the message came from the authority at all
+#   reissue        — the content is already live under another identity;
+#                    publishing would fork one hazard into two resolved alerts
 #
-# Findings raised while storing (`datetime-format`, `field-length`) are recorded
-# after the publication decision has been taken, so they never reach this set —
-# they cannot withhold anything by construction.
-DEFECT_ONLY_CHECKS = frozenset({"xsd"})
+# Adding a check therefore defaults to *publishing* it, which is the intended
+# bias. `CHECK_CATEGORIES` above is the list every check must appear in, and the
+# coverage test forces an author of a new check through this module.
+WITHHOLDING_CHECKS = frozenset({"xml-syntax", "attribution", "sent-parseable", "signature", "reissue"})
 
 
 def category_for_check(check: str) -> str:
