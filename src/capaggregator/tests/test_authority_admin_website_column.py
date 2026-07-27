@@ -41,7 +41,20 @@ class AuthorityAdminWebsiteLinkTests(TestCase):
         response = self.list_page()
 
         self.assertContains(response, "Website")  # the column header still renders
-        self.assertNotContains(response, "(opens in a new tab)")
+        # Asserted on the website wording rather than the bare "(opens in a new
+        # tab)": the feed column on the same row is a link of the same kind, and
+        # every authority has a feed URL.
+        self.assertNotContains(response, "website (opens in a new tab)")
+
+    def test_listing_links_the_feed_url_too(self):
+        """Same cell, same treatment — and the label has to name what it links to
+        rather than saying "website" on a feed."""
+        create_source_authority(name="Kenya Met", feed_url=THIRD_PARTY_FEED)
+
+        response = self.list_page()
+
+        self.assertContains(response, f'href="{THIRD_PARTY_FEED}"')
+        self.assertContains(response, "Kenya Met feed url (opens in a new tab)")
 
     def test_inspect_view_shows_a_website_panel(self):
         authority = create_source_authority(name="Kenya Met", website=WEBSITE)
