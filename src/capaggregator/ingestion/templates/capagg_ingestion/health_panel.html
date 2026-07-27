@@ -1,7 +1,4 @@
 {% load i18n %}
-{# Tooltip wording is carried on data- attributes rather than interpolated into
-   the script below: Django escapes attribute values, so a translation holding a
-   quote or backslash cannot break the JS. #}
 <section class="panel summary" id="capagg-health-panel" data-api-url="{{ api_url }}"
          data-defect-label-one="{% trans 'defect recorded' %}"
          data-defect-label-other="{% trans 'defects recorded' %}">
