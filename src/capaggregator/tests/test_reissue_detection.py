@@ -50,8 +50,9 @@ class ReissueDetectionTests(TestCase):
         self.assertEqual(result["state"], "quarantined")
         self.assertEqual(ResolvedAlert.objects.count(), 1, "the re-issue must not become a second live alert")
 
-        report = QuarantinedMessage.objects.get().report
-        messages = [e["message"] for e in report["errors"] if e["check"] == "reissue"]
+        withheld = QuarantinedMessage.objects.get()
+        self.assertEqual(withheld.primary_category, "reissue")
+        messages = [e["message"] for e in withheld.report["errors"] if e["check"] == "reissue"]
         self.assertEqual(len(messages), 1)
         # The operator needs to see which alert it collided with, not just that it did
         self.assertIn("urn:oid:2.49.0.0.404.0.2026.7.21.7.53.0", messages[0])

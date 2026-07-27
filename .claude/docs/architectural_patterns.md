@@ -72,6 +72,19 @@ Validation never raises to signal failure — it accumulates into a
 serializes to JSON (`as_dict()`) into `QuarantinedMessage.report` and
 `Alert.validation_warnings`. Nothing is ever silently dropped.
 
+Every finding's check name maps to one of seven categories through the single
+mapping in `ingestion/categories.py` (`schema` → `identity` → `signature` →
+`reissue` → `lineage` → `content` → `internal`, ordered most-upstream-first).
+**Adding a check means adding its mapping entry** — `test_check_categories`
+scans the source for check names and fails the suite on an unmapped one, so
+there is no `uncategorised` value. `internal` is for our own faults — a crashing
+validator is recorded under `CHECK_INTERNAL`, not under the rule's own name, so
+our bug is never reported to an NMHS as a defect in their CAP. A quarantined
+message denormalizes
+its most upstream category onto `primary_category` at creation
+(`QuarantinedMessage.save()`), so admin list filtering is a SQL predicate rather
+than a JSON query.
+
 ## Immutable-store-first, dedup, receipts
 
 Ingestion treats CAP messages as immutable and content as first-wins across

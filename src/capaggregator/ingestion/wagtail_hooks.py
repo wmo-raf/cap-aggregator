@@ -61,8 +61,8 @@ class QuarantineViewSet(SnippetViewSet):
     model = QuarantinedMessage
     icon = "warning"
     menu_label = "Quarantine"
-    list_display = ["raw_message", "status", "created"]
-    list_filter = ["status", "raw_message__authority"]
+    list_display = ["raw_message", Column("category_label", label="Category"), "status", "created"]
+    list_filter = ["primary_category", "status", "raw_message__authority"]
     inspect_view_enabled = True
     inspect_view_fields = ["raw_message", "status", "report_summary", "created", "modified"]
     inspect_template_name = "capagg_ingestion/quarantine_inspect.html"

@@ -10,6 +10,8 @@ from pathlib import Path
 
 from lxml import etree
 
+from .categories import CHECK_INTERNAL
+
 CAP_NS = "urn:oasis:names:tc:emergency:cap:1.2"
 CAP = f"{{{CAP_NS}}}"
 
@@ -59,12 +61,21 @@ class ValidatorRegistry:
 
         return decorator
 
+    def names(self) -> list[str]:
+        """Registered check names — every one of them needs a category mapping."""
+        return list(self._validators)
+
     def run_all(self, tree, raw, report: ValidationReport):
         for name, fn in self._validators.items():
             try:
                 fn(tree, raw, report)
             except Exception as ex:  # a broken rule must not kill the pipeline
-                report.warn(name, f"validator crashed: {ex}")
+                # Recorded against `internal`, not against the rule's own check
+                # name: a crash in our code is our fault, and filing it under
+                # (say) polygon-sanity would report our bug to an NMHS as a
+                # defect in their CAP. Still a warning, so a crashing rule
+                # never withholds a message that would otherwise publish.
+                report.warn(CHECK_INTERNAL, f"validator '{name}' crashed: {ex}")
 
 
 validator_registry = ValidatorRegistry()
