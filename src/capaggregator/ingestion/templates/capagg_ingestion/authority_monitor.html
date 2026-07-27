@@ -4,6 +4,7 @@
 
 {% block extra_css %}
     {{ block.super }}
+    {% include "capagg_ingestion/_health_cells.html" %}
     <style>
         .capagg-monitor {
             display: flex;
@@ -231,11 +232,6 @@
             <section class="capagg-panel">
                 <h2 class="capagg-panel__header">{% trans "Activity (last 30 days)" %}</h2>
                 <div class="capagg-panel__body">
-                    {% include "capagg_ingestion/_health_cells.html" %}
-                    {# Tooltip wording rides on data- attributes rather than being
-                       interpolated into the script: Django escapes attribute
-                       values, so a translation holding a quote or a backslash
-                       cannot break the JS. #}
                     <div id="activity-strip"
                          data-api-url="{{ health_api_url }}"
                          data-label-stored="{% trans 'stored' %}"
