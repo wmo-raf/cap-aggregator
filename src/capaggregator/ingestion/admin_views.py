@@ -4,6 +4,8 @@
   starts the `cap_backfill` job.
 - Quarantine actions: re-run validation over pending messages (bulk), and dismiss
   a single quarantined message.
+- The withheld inspect view: provenance, findings and the raw CAP, prepared here
+  because a finding's link target is a routing decision, not a model concern.
 """
 
 import uuid
@@ -13,13 +15,61 @@ from django.conf import settings
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 from task_ferry.handler import JobHandler
 from wagtail.admin.auth import require_admin_access
+from wagtail.snippets.views.snippets import InspectView
 
 from .forms import BackfillUploadForm
 from .models import QuarantinedMessage
+
+ALERT_INSPECT_URL_NAME = "wagtailsnippets_capagg_alerts_alert:inspect"
+RAW_MESSAGE_INSPECT_URL_NAME = "wagtailsnippets_capagg_ingestion_rawmessage:inspect"
+
+
+class WithheldInspectView(InspectView):
+    """Reading a withheld message: what arrived, what is wrong with it, and the
+    CAP itself — in that order, because the findings are what the operator came
+    for and a CAP document runs to hundreds of lines."""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings = [dict(f, link=self._link_for(f["context"])) for f in self.object.findings]
+        flagged = {f["context"]["line"] for f in findings if f["context"].get("line")}
+        context.update(
+            findings=findings,
+            flagged_lines=flagged,
+            # Collapsed by default; a finding that names a line is worth
+            # opening for, because the operator would otherwise have to count.
+            xml_expanded=bool(flagged),
+            xml_lines=list(enumerate(self.object.raw_message.xml.splitlines(), start=1)),
+            copy_report=self.object.copy_report(),
+        )
+        return context
+
+    def _link_for(self, finding_context: dict) -> str:
+        """Where a finding that references an alert takes the operator.
+
+        Into the admin, never out to the public site mid-investigation. An alert
+        resolved into a chain has an admin view worth reading; one that never
+        got that far is still mid-pipeline, so the raw message it came from is
+        the honest thing to show instead.
+        """
+        alert_id = finding_context.get("alert")
+        if not alert_id:
+            return ""
+        from capaggregator.alerts.models import Alert
+
+        alert = Alert.objects.filter(pk=alert_id).first()
+        if alert is None:
+            return ""
+        # The alert's chain as it stands now, not the chain the finding recorded
+        # at validation time — the operator is following this link today.
+        if alert.chain_id:
+            return reverse(ALERT_INSPECT_URL_NAME, args=[alert.pk])
+        return reverse(RAW_MESSAGE_INSPECT_URL_NAME, args=[alert.raw_message_id])
 
 
 @require_admin_access

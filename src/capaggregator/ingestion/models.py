@@ -165,15 +165,62 @@ class QuarantinedMessage(models.Model):
         return self.get_primary_category_display() or "—"
 
     @property
-    def report_summary(self) -> str:
-        """Flatten the per-check report into legible text for the admin detail view."""
-        lines = []
-        for severity in ("errors", "warnings"):
-            entries = self.report.get(severity) or []
-            if entries:
-                lines.append(f"{severity.capitalize()}:")
-                lines += [f"  [{e.get('check', '?')}] {e.get('message', '')}" for e in entries]
-        return "\n".join(lines) or _("No issues recorded")
+    def findings(self) -> list[dict]:
+        """Every finding in one list, errors first.
+
+        One list rather than two headed sections: a typical message carries one
+        to three findings, and what the operator needs first is the blocking
+        problem — not a heading telling them which section they are in.
+        """
+        return [
+            {"severity": severity,
+             "check": entry.get("check", ""),
+             "category": categories.category_for_check(entry.get("check", "")),
+             "message": entry.get("message", ""),
+             "context": entry.get("context") or {}}
+            for severity, key in (("error", "errors"), ("warning", "warnings"))
+            for entry in (self.report.get(key) or [])
+        ]
+
+    @property
+    def cap_identity(self) -> dict:
+        """The CAP identity triple, read back from the stored message.
+
+        There is no Alert to read it from — that is the point of the row — but
+        an authority identifies one of their own messages by <identifier>, not
+        by our checksum. Empty when the message is too broken to parse.
+        """
+        from capaggregator.alerts.parser import parse_identity
+
+        return parse_identity(self.raw_message.xml) or {}
+
+    def copy_report(self) -> str:
+        """A plain-text report of this message, for pasting into an email.
+
+        The follow-up conversation with the publisher is the entire point of
+        validating, so this has to stand on its own: who sent what, when, and
+        everything wrong with it.
+        """
+        raw = self.raw_message
+        identity = self.cap_identity
+        lines = [
+            f"CAP message withheld — {self.get_primary_category_display() or _('uncategorised')}",
+            "",
+            f"Authority:  {raw.authority or _('unattributed')}",
+            f"Transport:  {raw.get_transport_display()}{f' ({raw.topic})' if raw.topic else ''}",
+            f"Received:   {raw.received_at:%Y-%m-%d %H:%M:%S %Z}",
+            f"Checksum:   sha256 {raw.sha256}",
+        ]
+        if identity:
+            lines += [
+                f"Identifier: {identity['identifier']}",
+                f"Sender:     {identity['sender']}",
+                f"Sent:       {identity['sent']:%Y-%m-%d %H:%M:%S %Z}",
+            ]
+        findings = self.findings
+        lines += ["", f"Findings ({len(findings)}):"]
+        lines += [f"  {f['severity']}: [{f['check']}] {f['message']}" for f in findings] or [_("  none recorded")]
+        return "\n".join(lines)
 
 
 class SourceEvent(models.Model):

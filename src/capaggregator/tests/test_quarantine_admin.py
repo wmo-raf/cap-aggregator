@@ -1,6 +1,7 @@
-"""Phase B/4: the quarantine inbox admin surface — dismiss and re-validate actions
-and the report-rendering detail view. Smoke-level for the Wagtail plumbing; the
-re-validation behavior itself is covered in test_quarantine_revalidation."""
+"""Phase B/4: the withheld-register admin surface — the list, its filters, and
+the dismiss and re-validate actions. Smoke-level for the Wagtail plumbing; the
+inspect view is covered in test_withheld_inspect and the re-validation behaviour
+in test_quarantine_revalidation."""
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -33,7 +34,6 @@ class QuarantineActionTests(TestCase):
 
 class QuarantineInboxTests(TestCase):
     LIST_URL_NAME = "wagtailsnippets_capagg_ingestion_quarantinedmessage:list"
-    INSPECT_URL_NAME = "wagtailsnippets_capagg_ingestion_quarantinedmessage:inspect"
 
     def setUp(self):
         self.authority = create_source_authority(name="Kenya Met")
@@ -73,34 +73,9 @@ class QuarantineInboxTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([m.primary_category for m in response.context["object_list"]], ["identity"])
 
-    def test_detail_view_renders_the_validation_report(self):
-        report = {"errors": [{"check": "sender", "message": "DISTINCTIVE-REASON"}], "warnings": []}
-        message = create_quarantined_message(authority=self.authority, report=report)
-
-        response = self.client.get(reverse(self.INSPECT_URL_NAME, args=[message.pk]))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "DISTINCTIVE-REASON")
-
     def test_inbox_requires_login(self):
         self.client.logout()
 
         response = self.client.get(reverse(self.LIST_URL_NAME))
 
         self.assertEqual(response.status_code, 302)
-
-
-class QuarantineReportSummaryTests(TestCase):
-    def test_report_summary_lists_each_error_and_warning(self):
-        report = {
-            "errors": [{"check": "sender", "message": "sender not registered"}],
-            "warnings": [{"check": "expires-required", "message": "missing expires"}],
-        }
-        message = create_quarantined_message(report=report)
-
-        summary = message.report_summary
-
-        self.assertIn("sender", summary)
-        self.assertIn("sender not registered", summary)
-        self.assertIn("expires-required", summary)
-        self.assertIn("missing expires", summary)

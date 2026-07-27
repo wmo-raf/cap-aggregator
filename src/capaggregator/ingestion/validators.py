@@ -29,6 +29,21 @@ def get_schema() -> etree.XMLSchema:
     return _schema
 
 
+def _finding(check: str, message: str, context: dict) -> dict:
+    """One finding: prose for a human, plus whatever a renderer can act on.
+
+    Context keys are open-ended and the renderer decides what to do with each —
+    `alert` and `chain` become a link to the alert a finding references, `line`
+    points the raw-XML view at the offending line. A new check gets that
+    treatment by passing the same keys, with no column per check anywhere.
+    Omitted entirely when empty, so a report stays readable as JSON.
+    """
+    finding = {"check": check, "message": message}
+    if context:
+        finding["context"] = context
+    return finding
+
+
 @dataclass
 class ValidationReport:
     errors: list[dict] = field(default_factory=list)
@@ -50,11 +65,11 @@ class ValidationReport:
         """
         return classify_report({"errors": self.blocking_findings(), "warnings": []})
 
-    def error(self, check: str, message: str):
-        self.errors.append({"check": check, "message": message})
+    def error(self, check: str, message: str, **context):
+        self.errors.append(_finding(check, message, context))
 
-    def warn(self, check: str, message: str):
-        self.warnings.append({"check": check, "message": message})
+    def warn(self, check: str, message: str, **context):
+        self.warnings.append(_finding(check, message, context))
 
     def blocking_summary(self) -> str:
         """One line naming why the message is unpublished — for the log."""
@@ -113,7 +128,7 @@ def run_validators(raw) -> ValidationReport:
     try:
         tree = etree.fromstring(raw.xml.encode())
     except etree.XMLSyntaxError as ex:
-        report.error("xml-syntax", str(ex))
+        report.error("xml-syntax", str(ex), line=ex.lineno)
         return report
 
     # 2. XSD. A schema violation no longer ends the run: the message goes
@@ -123,7 +138,10 @@ def run_validators(raw) -> ValidationReport:
     schema = get_schema()
     if not schema.validate(tree):
         for err in schema.error_log:
-            report.error("xsd", f"line {err.line}: {err.message}")
+            # The line stays in the message as well as in the context: the
+            # defect register keeps only the prose, and an operator reading a
+            # published alert's defects still needs to know where to look.
+            report.error("xsd", f"line {err.line}: {err.message}", line=err.line)
 
     # 3-5. The directly-invoked checks. They see schema-invalid trees now, so
     #      they carry the same crash guard as the registry: a bug in one must
@@ -306,4 +324,6 @@ def check_reissue(tree, raw, report):
             f"but re-sent as {(tree.findtext(f'{CAP}identifier') or '').strip()} at {sent} with no "
             f"<references> to it. Either the publisher re-saved an already-disseminated alert "
             f"(upstream bug) or it should have issued msgType=Update.",
+            alert=prior.pk,
+            chain=prior.chain_id,
         )

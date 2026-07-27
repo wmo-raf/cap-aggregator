@@ -9,6 +9,7 @@ from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 from capaggregator.utils.admin import ReadOnlyPermissionPolicy, RelatedListingMixin
 
 from .admin_views import (
+    WithheldInspectView,
     authority_monitor,
     backfill_upload,
     health_dashboard_api,
@@ -45,8 +46,11 @@ class QuarantineViewSet(SnippetViewSet):
     list_display = ["raw_message", Column("category_label", label="Category"), "status", "created"]
     list_filter = ["primary_category", "status", "raw_message__authority"]
     inspect_view_enabled = True
-    inspect_view_fields = ["raw_message", "status", "report_summary", "created", "modified"]
+    # The template renders provenance, findings and the raw CAP itself, so the
+    # generic field table would only repeat it in a less legible order.
+    inspect_view_class = WithheldInspectView
     inspect_template_name = "capagg_ingestion/quarantine_inspect.html"
+    list_select_related = ["raw_message", "raw_message__authority"]
 
 
 class SourceEventViewSet(SnippetViewSet):

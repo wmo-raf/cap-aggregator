@@ -46,7 +46,8 @@ def create_source_event(authority=None, ok=True, transport="poll", occurred_at=N
     return event
 
 
-def create_quarantined_message(authority=None, report=None, status="pending"):
+def create_quarantined_message(authority=None, report=None, status="pending", xml="<alert/>",
+                               transport="manual", topic=""):
     """A RawMessage + its QuarantinedMessage, without running the pipeline."""
     from capaggregator.ingestion.models import QuarantinedMessage, RawMessage
 
@@ -54,8 +55,9 @@ def create_quarantined_message(authority=None, report=None, status="pending"):
         report = {"errors": [{"check": "sender", "message": "sender not registered"}], "warnings": []}
     raw = RawMessage.objects.create(
         authority=authority,
-        transport="manual",
-        xml="<alert/>",
+        transport=transport,
+        topic=topic,
+        xml=xml,
         sha256=uuid.uuid4().hex + uuid.uuid4().hex,
         state="quarantined",
     )

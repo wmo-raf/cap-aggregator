@@ -1,15 +1,200 @@
 {% extends "wagtailadmin/generic/inspect.html" %}
 {% load i18n %}
-{% block main_content %}
+
+{% block extra_css %}
     {{ block.super }}
-    <div class="nice-padding">
-        <form action="{% url 'capagg_ingestion_quarantine_dismiss' object.pk %}" method="post" style="display:inline">
+    <style>
+        .capagg-withheld-section {
+            padding-top: 1.5em;
+        }
+        .capagg-category-badge {
+            display: inline-block;
+            padding: 0.2em 0.75em;
+            border: 1px solid var(--w-color-border-furniture);
+            border-radius: 1em;
+            background-color: var(--w-color-grey-50);
+            color: var(--w-color-text-label);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .capagg-provenance {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .capagg-provenance th,
+        .capagg-provenance td {
+            padding: 0.5em 1em 0.5em 0;
+            text-align: left;
+            vertical-align: top;
+            border-bottom: 1px solid var(--w-color-border-furniture);
+        }
+        .capagg-provenance th {
+            color: var(--w-color-text-label);
+            white-space: nowrap;
+        }
+        .capagg-findings {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .capagg-finding {
+            padding: 0.75em 1em;
+            border: 1px solid var(--w-color-border-furniture);
+            border-inline-start-width: 4px;
+            margin-bottom: 0.5em;
+            background-color: var(--w-color-surface-field);
+        }
+        .capagg-finding--error {
+            border-inline-start-color: var(--w-color-critical-200);
+        }
+        .capagg-finding--warning {
+            border-inline-start-color: var(--w-color-warning-100);
+        }
+        .capagg-finding-meta {
+            color: var(--w-color-grey-400);
+            font-size: 0.9em;
+            margin-bottom: 0.25em;
+        }
+        .capagg-finding-check {
+            font-family: monospace;
+            color: var(--w-color-text-label);
+        }
+        .capagg-xml-lines {
+            margin: 0;
+            padding: 0.5em 0;
+            overflow-x: auto;
+            background-color: var(--w-color-surface-field);
+            border: 1px solid var(--w-color-border-furniture);
+            font-family: monospace;
+            font-size: 0.9em;
+            counter-reset: capagg-xml-line;
+        }
+        .capagg-xml-line {
+            list-style: none;
+            white-space: pre;
+            padding: 0 1em;
+        }
+        .capagg-xml-line::before {
+            content: counter(capagg-xml-line);
+            counter-increment: capagg-xml-line;
+            display: inline-block;
+            width: 3.5em;
+            color: var(--w-color-grey-400);
+            text-align: right;
+            padding-inline-end: 1em;
+        }
+        .capagg-xml-line--flagged {
+            /* "a finding points here", not a severity — findings of either
+               severity can name a line. */
+            background-color: var(--w-color-info-100);
+        }
+        .capagg-actions {
+            display: flex;
+            gap: 0.5em;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .capagg-empty {
+            color: var(--w-color-grey-400);
+        }
+    </style>
+{% endblock %}
+
+{% block main_content %}
+    <div class="nice-padding capagg-withheld-section">
+        <p><span class="capagg-category-badge">{{ object.category_label }}</span></p>
+
+        <h2>{% trans "Provenance" %}</h2>
+        <table class="capagg-provenance">
+            <tr>
+                <th>{% trans "Authority" %}</th>
+                <td>{{ object.raw_message.authority|default:_("Unattributed") }}</td>
+            </tr>
+            <tr><th>{% trans "Transport" %}</th><td>{{ object.raw_message.get_transport_display }}</td></tr>
+            <tr>
+                <th>{% trans "Topic" %}</th>
+                <td>{{ object.raw_message.topic|default:"—" }}</td>
+            </tr>
+            <tr><th>{% trans "Received" %}</th><td>{{ object.raw_message.received_at }}</td></tr>
+            <tr>
+                <th>{% trans "Sent" %}</th>
+                <td>{{ object.raw_message.sent_at|default_if_none:"—" }}</td>
+            </tr>
+            <tr><th>{% trans "Checksum" %}</th><td>sha256 {{ object.raw_message.sha256 }}</td></tr>
+            <tr><th>{% trans "Status" %}</th><td>{{ object.get_status_display }}</td></tr>
+            <tr><th>{% trans "Withheld" %}</th><td>{{ object.created }}</td></tr>
+        </table>
+    </div>
+
+    <div class="nice-padding capagg-withheld-section">
+        <h2>{% trans "Findings" %}</h2>
+        {% if findings %}
+            <ul class="capagg-findings">
+                {% for finding in findings %}
+                    <li class="capagg-finding capagg-finding--{{ finding.severity }}">
+                        <div class="capagg-finding-meta">
+                            {{ finding.severity|capfirst }} ·
+                            <span class="capagg-finding-check">{{ finding.check }}</span> ·
+                            {{ finding.category }}
+                        </div>
+                        <div>{{ finding.message }}</div>
+                        {% if finding.link %}
+                            <p><a href="{{ finding.link }}">{% trans "Open the alert this refers to" %}</a></p>
+                        {% endif %}
+                        {% if finding.context.line %}
+                            <p>
+                                <a href="#capagg-xml-line-{{ finding.context.line }}">
+                                    {% blocktrans with line=finding.context.line %}Jump to line {{ line }}{% endblocktrans %}
+                                </a>
+                            </p>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="capagg-empty">{% trans "No findings recorded." %}</p>
+        {% endif %}
+    </div>
+
+    <div class="nice-padding capagg-withheld-section">
+        <details {% if xml_expanded %}open {% endif %}class="capagg-xml">
+            <summary>{% trans "Raw CAP XML" %}</summary>
+            <ol class="capagg-xml-lines">
+                {% for number, text in xml_lines %}
+                    <li id="capagg-xml-line-{{ number }}"
+                        class="capagg-xml-line{% if number in flagged_lines %} capagg-xml-line--flagged{% endif %}">{{ text }}</li>
+                {% endfor %}
+            </ol>
+        </details>
+    </div>
+
+    <div class="nice-padding capagg-withheld-section capagg-actions">
+        <form action="{% url 'capagg_ingestion_quarantine_dismiss' object.pk %}" method="post">
             {% csrf_token %}
             <button type="submit" class="button button-secondary">{% trans "Dismiss" %}</button>
         </form>
-        <form action="{% url 'capagg_ingestion_quarantine_revalidate' %}" method="post" style="display:inline">
+        <form action="{% url 'capagg_ingestion_quarantine_revalidate' %}" method="post">
             {% csrf_token %}
-            <button type="submit" class="button">{% trans "Re-run validation (all pending)" %}</button>
+            <button type="submit" class="button button-secondary">{% trans "Re-run validation (all pending)" %}</button>
         </form>
+        <button type="button" class="button capagg-copy-report"
+                data-report="{{ copy_report }}">{% trans "Copy report" %}</button>
     </div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const button = document.querySelector('.capagg-copy-report');
+            if (!button) return;
+            const label = button.textContent;
+            button.addEventListener('click', async function () {
+                await navigator.clipboard.writeText(button.dataset.report);
+                button.textContent = '{% trans "Copied" %}';
+                setTimeout(function () { button.textContent = label; }, 2000);
+            });
+        });
+    </script>
 {% endblock %}

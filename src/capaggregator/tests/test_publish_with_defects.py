@@ -183,6 +183,44 @@ class WithheldOutcomeTests(TestCase):
         self.assertIn("disk on fire", internal[0]["message"])
 
 
+class FindingContextTests(TestCase):
+    """Findings carry machine-readable context beside their prose, so a reader
+    can be pointed at the offending line and follow a reference to the alert it
+    names instead of trusting the message text."""
+
+    def setUp(self):
+        self.authority = create_source_authority(name="Kenya Met")
+
+    def _withheld_report(self, xml, authority=None):
+        result = ingest_raw_message(transport="manual", xml=xml,
+                                    authority_id=(authority or self.authority).id)
+        self.assertEqual(result["state"], "quarantined", result)
+        return QuarantinedMessage.objects.get(raw_message_id=result["raw_id"]).report
+
+    def test_a_schema_finding_points_at_the_line_it_came_from(self):
+        xml = cap_alert_xml(sent="not-a-date")
+
+        report = self._withheld_report(xml)
+
+        schema = next(e for e in report["errors"] if e["check"] == "xsd")
+        self.assertIn("<sent>", xml.splitlines()[schema["context"]["line"] - 1],
+                      "the operator must not have to count lines")
+
+    def test_a_reissue_finding_names_the_alert_it_duplicates(self):
+        first = ingest_raw_message(
+            transport="manual", xml=cap_alert_xml(identifier="A", sent="2026-07-21T07:53:00+00:00"),
+            authority_id=self.authority.id,
+        )
+        prior = Alert.objects.get(id=first["alert_id"])
+        chain = resolve(prior)
+
+        report = self._withheld_report(cap_alert_xml(identifier="B", sent="2026-07-21T07:54:00+00:00"))
+
+        context = next(e for e in report["errors"] if e["check"] == "reissue")["context"]
+        self.assertEqual(context["alert"], prior.pk)
+        self.assertEqual(context["chain"], chain.pk)
+
+
 class OneIngestionReportsEverythingTests(TestCase):
     """Validation no longer stops at the first layer that fails, so an operator
     learns about every defect in one ingestion rather than discovering the next
