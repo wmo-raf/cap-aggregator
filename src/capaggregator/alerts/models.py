@@ -107,6 +107,11 @@ class AlertDefect(models.Model):
         indexes = [
             models.Index(fields=["category", "created"]),
             models.Index(fields=["alert", "category"]),
+            # The health dashboard's conformance channel scans a rolling window
+            # of `created` and joins out to the alert's authority. `created`
+            # leads because it carries the range predicate; the join side is
+            # already served by the FK's own index on `alert_id`.
+            models.Index(fields=["created"]),
         ]
 
     def __str__(self):

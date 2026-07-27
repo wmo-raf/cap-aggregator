@@ -2,11 +2,19 @@
 
 Pure functions that turn RawMessage + SourceEvent history into the per-authority,
 per-day status matrix the health dashboard renders. No rollup table, no cache —
-two grouped aggregates over indexed columns, precedence applied in Python.
+a few grouped aggregates over indexed columns, precedence applied in Python.
+
+Delivery and conformance are **independent axes**, carried as separate channels
+on the payload. The status colour answers "did their messages reach us?"; the
+defect count answers "was the CAP they sent us well-formed?". Folding the second
+into the first would make a day with 200 clean alerts and one defect sort worse
+than a day with no alerts at all — so `_status` and `_worst_first_key` never see
+the defect counts.
 """
 
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, time, timedelta
+from datetime import timezone as dt_timezone
 
 from django.db.models import Count
 from django.db.models.functions import TruncDate
@@ -48,10 +56,44 @@ def _status(signal) -> str:
     return "gray"
 
 
-def build_health_matrix(*, days: int = 30, now=None, authority_id: int | None = None) -> dict:
-    """Return {"days": [ISO dates], "authorities": [{id, name, country, statuses, detail_url}]}.
+def _defect_counts(auth_ids, window_start) -> dict:
+    """{(authority_id, day): n} — conformance findings recorded per authority per
+    UTC day, over the same window as the delivery signals.
 
-    One status per UTC day per active authority, worst-first ordered.
+    A defect reaches its authority through the alert it was found on
+    (`AlertDefect.alert.authority`), which is the non-null side of the chain —
+    the alert exists precisely because the message published.
+
+    `internal` findings are our own faults — a validator that crashed, a store
+    that failed unexpectedly — and are excluded here, because this signal is
+    read as a statement about the authority's CAP. Counting our bug as their
+    non-conformance is how an NMHS gets told off for our mistake.
+    """
+    from capaggregator.alerts.models import AlertDefect
+
+    from . import categories
+
+    # Bounded on the bare column rather than `created__date__gte`, which Postgres
+    # sees as `(created AT TIME ZONE UTC)::date >= …` — a function on the column,
+    # so no index on `created` could serve it. Settings pin TIME_ZONE to UTC, so
+    # midnight-UTC on the first day of the window is the same cut.
+    window_open = datetime.combine(window_start, time.min, tzinfo=dt_timezone.utc)
+    rows = (
+        AlertDefect.objects.filter(alert__authority_id__in=auth_ids, created__gte=window_open)
+        .exclude(category=categories.INTERNAL)
+        .annotate(day=TruncDate("created"))
+        .values("alert__authority_id", "day")
+        .annotate(n=Count("id"))
+    )
+    return {(row["alert__authority_id"], row["day"]): row["n"] for row in rows}
+
+
+def build_health_matrix(*, days: int = 30, now=None, authority_id: int | None = None) -> dict:
+    """Return {"days": [ISO dates], "authorities": [{id, name, country, statuses,
+    defects, detail_url}]}.
+
+    One delivery status and one conformance defect count per UTC day per active
+    authority, worst-first ordered on the delivery axis alone.
     """
     from capaggregator.sources.models import SourceAuthority
 
@@ -101,6 +143,8 @@ def build_health_matrix(*, days: int = 30, now=None, authority_id: int | None = 
     for row in latest_polls:
         signals[(row["authority_id"], row["day"])]["latest_poll_ok"] = row["ok"]
 
+    defects = _defect_counts(auth_ids, window_start)
+
     single = authority_id is not None
     rows = []
     for authority in authorities:
@@ -111,6 +155,9 @@ def build_health_matrix(*, days: int = 30, now=None, authority_id: int | None = 
             "country_name": authority.country.name,
             "website": authority.website_url,
             "statuses": [_status(signals.get((authority.id, day))) for day in day_list],
+            # A count rather than a boolean: an authority degrading should be
+            # visible before it is obviously broken.
+            "defects": [defects.get((authority.id, day), 0) for day in day_list],
             "detail_url": f"/admin/capagg-sources/{authority.id}/monitor/",
         }
         if single:

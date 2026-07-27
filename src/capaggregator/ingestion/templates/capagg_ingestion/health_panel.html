@@ -1,5 +1,10 @@
 {% load i18n %}
-<section class="panel summary" id="capagg-health-panel" data-api-url="{{ api_url }}">
+{# Tooltip wording is carried on data- attributes rather than interpolated into
+   the script below: Django escapes attribute values, so a translation holding a
+   quote or backslash cannot break the JS. #}
+<section class="panel summary" id="capagg-health-panel" data-api-url="{{ api_url }}"
+         data-defect-label-one="{% trans 'defect recorded' %}"
+         data-defect-label-other="{% trans 'defects recorded' %}">
     <h2>{% trans "Ingestion health (last 30 days)" %}</h2>
 
     <style>
@@ -66,11 +71,23 @@
         }
 
         #capagg-health-panel .capagg-cell {
+            position: relative;
             display: inline-block;
             width: 8px;
             height: 16px;
             border-radius: 1px;
             background: var(--w-color-grey-100);
+        }
+
+        /* Conformance is an independent axis, so it gets its own channel: a
+           corner notch over the delivery colour, which keeps its own meaning. */
+        #capagg-health-panel .capagg-cell--defective::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            inset-inline-end: 0;
+            border-block-start: 5px solid var(--w-color-text-label);
+            border-inline-start: 5px solid transparent;
         }
 
         #capagg-health-panel .capagg-cell.red {
@@ -117,6 +134,7 @@
             <span class="capagg-legend-item"><span class="capagg-cell green"></span> {% trans "Alerts" %}</span>
             <span class="capagg-legend-item"><span class="capagg-cell alive"></span> {% trans "Alive, Quiet" %}</span>
             <span class="capagg-legend-item"><span class="capagg-cell gray"></span> {% trans "No Signal" %}</span>
+            <span class="capagg-legend-item"><span class="capagg-cell green capagg-cell--defective"></span> {% trans "Non-conformant CAP" %}</span>
         </div>
 
         <div class="capagg-banner" hidden></div>
@@ -133,6 +151,10 @@
             const apiUrl = panel.dataset.apiUrl;
             const banner = panel.querySelector(".capagg-banner");
             const tbody = panel.querySelector("tbody");
+
+            function defectLabel(n) {
+                return n === 1 ? panel.dataset.defectLabelOne : panel.dataset.defectLabelOther;
+            }
 
             function paint(data) {
                 if (data.mqtt_consumer_connected === false) {
@@ -165,10 +187,13 @@
                     const cellsTd = document.createElement("td");
                     const cells = document.createElement("span");
                     cells.className = "capagg-cells";
+                    const defects = a.defects || [];
                     (a.statuses || []).forEach(function (status, i) {
                         const c = document.createElement("span");
-                        c.className = "capagg-cell " + status;
-                        c.title = data.days[i] + ": " + status;
+                        const n = defects[i] || 0;
+                        c.className = "capagg-cell " + status + (n ? " capagg-cell--defective" : "");
+                        c.title = data.days[i] + ": " + status
+                            + (n ? " — " + n + " " + defectLabel(n) : "");
                         cells.appendChild(c);
                     });
                     cellsTd.appendChild(cells);

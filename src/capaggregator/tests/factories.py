@@ -108,17 +108,24 @@ def create_cap_alert(
 
 
 def create_alert_defect(authority=None, alert=None, check_name="polygon-sanity", message="ring not closed",
-                        severity="warning"):
-    """An AlertDefect on its own alert, with the category the check maps to."""
+                        severity="warning", created=None):
+    """An AlertDefect on its own alert, with the category the check maps to.
+    `created` (auto_now_add) is backdated if given. `authority` only decides who
+    publishes a *new* alert — pass one or the other, not both."""
     from capaggregator.alerts.models import AlertDefect
     from capaggregator.ingestion.categories import category_for_check
 
-    authority = authority or create_source_authority()
-    alert = alert or create_cap_alert(authority)
+    if alert is not None and authority is not None:
+        raise TypeError("pass either `alert` or `authority`, not both")
+    if alert is None:
+        alert = create_cap_alert(authority or create_source_authority())
     defect = AlertDefect.objects.create(
         alert=alert, category=category_for_check(check_name), check_name=check_name,
         message=message, severity=severity,
     )
+    if created is not None:
+        AlertDefect.objects.filter(pk=defect.pk).update(created=created)
+        defect.created = created
     alert.refresh_defect_count()
     return defect
 

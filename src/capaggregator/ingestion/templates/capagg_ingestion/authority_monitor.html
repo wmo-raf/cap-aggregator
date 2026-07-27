@@ -12,6 +12,14 @@
             max-width: 60rem;
         }
 
+        /* Withheld and Defects side by side: both halves of a source's data
+           quality read together, stacking on a narrow viewport. */
+        .capagg-strips {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+            gap: 1.5rem;
+        }
+
         .capagg-panel {
             border: 1px solid var(--w-color-border-furniture);
             border-radius: 5px;
@@ -310,16 +318,28 @@
                 </div>
             </section>
 
-            {# 6. Withheld strip #}
-            <section class="capagg-panel">
-                <h2 class="capagg-panel__header">
-                    {% trans "Withheld" %}
-                    <a class="capagg-panel__link" href="{{ quarantine_all_url }}">{% trans "open register" %}</a>
-                </h2>
-                <div class="capagg-panel__body">
-                    {% blocktrans count count=quarantine_pending_count %}{{ count }} pending withheld message.{% plural %}{{ count }} pending withheld messages.{% endblocktrans %}
-                </div>
-            </section>
+            {# 6. Data quality: what we refused to publish, and what we published anyway #}
+            <div class="capagg-strips">
+                <section class="capagg-panel">
+                    <h2 class="capagg-panel__header">
+                        {% trans "Withheld" %}
+                        <a class="capagg-panel__link" href="{{ quarantine_all_url }}">{% trans "open register" %}</a>
+                    </h2>
+                    <div class="capagg-panel__body">
+                        {% blocktrans count count=quarantine_pending_count %}{{ count }} pending withheld message.{% plural %}{{ count }} pending withheld messages.{% endblocktrans %}
+                    </div>
+                </section>
+
+                <section class="capagg-panel">
+                    <h2 class="capagg-panel__header">
+                        {% trans "Defects" %}
+                        <a class="capagg-panel__link" href="{{ defects_all_url }}">{% trans "open register" %}</a>
+                    </h2>
+                    <div class="capagg-panel__body">
+                        {% blocktrans count count=defect_count %}{{ count }} defect recorded on published alerts.{% plural %}{{ count }} defects recorded on published alerts.{% endblocktrans %}
+                    </div>
+                </section>
+            </div>
 
         </div>
     </div>

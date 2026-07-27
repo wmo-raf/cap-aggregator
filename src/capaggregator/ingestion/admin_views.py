@@ -95,8 +95,10 @@ def authority_monitor(request, pk):
     transport-event tables, and quarantine backlog."""
     from django.urls import reverse
 
+    from capaggregator.alerts.models import AlertDefect
     from capaggregator.sources.models import SourceAuthority
 
+    from . import categories
     from .models import RawMessage, SourceEvent
 
     authority = get_object_or_404(SourceAuthority, pk=pk)
@@ -124,6 +126,15 @@ def authority_monitor(request, pk):
         "quarantine_pending_count": QuarantinedMessage.objects.filter(
             raw_message__authority=authority, status="pending"
         ).count(),
+        # The other half of this source's data quality: what we published for
+        # them despite it being non-conformant. Unfiltered by the page's
+        # controls, like the withheld count beside it. `internal` findings are
+        # our own faults and never appear in authority-facing reporting.
+        "defect_count": (
+            AlertDefect.objects.filter(alert__authority=authority)
+            .exclude(category=categories.INTERNAL)
+            .count()
+        ),
         "recent_messages": messages_qs[:5],
         "recent_events": events_qs[:5],
         "health_api_url": reverse("capagg_ingestion_health_api") + f"?authority={authority.id}",
@@ -135,6 +146,10 @@ def authority_monitor(request, pk):
         "quarantine_all_url": (
             reverse("wagtailsnippets_capagg_ingestion_quarantinedmessage:list")
             + f"?raw_message__authority={authority.id}"
+        ),
+        "defects_all_url": (
+            reverse("wagtailsnippets_capagg_alerts_alertdefect:list")
+            + f"?alert__authority={authority.id}"
         ),
     }
     return render(request, "capagg_ingestion/authority_monitor.html", context)
