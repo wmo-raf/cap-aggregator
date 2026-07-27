@@ -1,0 +1,25 @@
+{% comment %}
+External link to an authority's own website, rendered as a bare icon.
+
+Usage: {% include "includes/_authority_website_link.html" with authority=chain.authority %}
+
+`website_url` falls back to the origin of a cap-composer feed URL, and is ""
+when neither is available — in which case nothing is rendered at all (never a
+link with an empty href). Icon markup lives here only; keep the three public
+call sites (alert detail, alert version, home page) one line each.
+{% endcomment %}
+{% if authority.website_url %}
+    <a href="{{ authority.website_url }}"
+       target="_blank"
+       rel="noopener noreferrer"
+       class="inline-flex items-center align-middle text-muted-foreground transition-colors hover:text-foreground"
+       aria-label="{{ authority.name }} website (opens in a new tab)"
+       title="{{ authority.name }} website (opens in a new tab)">
+        <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 3h6v6" />
+            <path d="M10 14 21 3" />
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        </svg>
+    </a>
+{% endif %}

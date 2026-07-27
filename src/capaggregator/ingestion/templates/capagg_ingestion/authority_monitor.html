@@ -1,5 +1,5 @@
 {% extends "wagtailadmin/base.html" %}
-{% load i18n %}
+{% load i18n wagtailadmin_tags %}
 {% block titletag %}{% blocktrans with name=authority.name %}Monitor: {{ name }}{% endblocktrans %}{% endblock %}
 
 {% block extra_css %}
@@ -99,6 +99,14 @@
             color: var(--w-color-text-label);
         }
 
+        /* Trailing "opens in a new tab" marker on external links. */
+        .capagg-external-icon {
+            width: .8em;
+            height: .8em;
+            margin-inline-start: .35em;
+            vertical-align: -.05em;
+        }
+
         .capagg-filter {
             display: flex;
             flex-wrap: wrap;
@@ -135,6 +143,18 @@
                         <tr>
                             <th>{% trans "Country" %}</th>
                             <td>{{ authority.country.name }} ({{ authority.country.code }})</td>
+                        </tr>
+                        <tr>
+                            <th>{% trans "Website" %}</th>
+                            <td>
+                                {% if authority.website_url %}
+                                    <a href="{{ authority.website_url }}" target="_blank" rel="noopener noreferrer">
+                                        {{ authority.website_url }}{% icon name="link-external" classname="capagg-external-icon" %}
+                                    </a>
+                                {% else %}
+                                    &mdash;
+                                {% endif %}
+                            </td>
                         </tr>
                         <tr>
                             <th>{% trans "Active" %}</th>

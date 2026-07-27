@@ -57,6 +57,14 @@
             gap: 1px;
         }
 
+        /* Trailing "opens in a new tab" marker on external links. */
+        #capagg-health-panel .capagg-external-icon {
+            width: .8em;
+            height: .8em;
+            margin-inline-start: .35em;
+            vertical-align: -.05em;
+        }
+
         #capagg-health-panel .capagg-cell {
             display: inline-block;
             width: 8px;
@@ -138,7 +146,20 @@
                     const tr = document.createElement("tr");
 
                     const name = document.createElement("td");
-                    name.textContent = a.name + " (" + (a.country || "").toUpperCase() + ")";
+                    name.textContent = a.name + " (" + (a.country_name || "").toUpperCase() + ")";
+                    if (a.website) {
+                        const site = document.createElement("a");
+                        site.href = a.website;
+                        site.target = "_blank";
+                        site.rel = "noopener noreferrer";
+                        const label = a.name + " {% trans 'website (opens in a new tab)' %}";
+                        site.title = label;
+                        site.setAttribute("aria-label", label);
+                        // Wagtail's admin icon sprite is already on the page.
+                        site.innerHTML = '<svg class="icon capagg-external-icon" aria-hidden="true">'
+                            + '<use href="#icon-link-external"></use></svg>';
+                        name.appendChild(site);
+                    }
                     tr.appendChild(name);
 
                     const cellsTd = document.createElement("td");

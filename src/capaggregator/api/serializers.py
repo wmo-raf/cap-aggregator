@@ -12,6 +12,8 @@ class SourceAuthoritySerializer(serializers.ModelSerializer):
 
     country = serializers.CharField(source="country.code", read_only=True)
     country_name = serializers.CharField(source="country.name", read_only=True)
+    # Falls back to the feed URL's origin when the authority left `website` blank.
+    website = serializers.CharField(source="website_url", read_only=True)
     active_alert_count = serializers.IntegerField(read_only=True)
 
     class Meta:

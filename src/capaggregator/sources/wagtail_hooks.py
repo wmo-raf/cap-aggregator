@@ -12,6 +12,7 @@ from django.urls import path, reverse
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from wagtail import hooks
+from wagtail.admin.ui.tables import Column
 from wagtail.admin.widgets.button import HeaderButton
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import IndexView as SnippetIndexView
@@ -39,11 +40,50 @@ class SourceAuthorityIndexView(SnippetIndexView):
         return buttons
 
 
+class LinkColumnWithIcon(Column):
+    cell_template_name = "capagg_sources/tables/_icon_link_cell.html"
+
+    def __init__(self, name, icon_name=None, **kwargs):
+        super().__init__(name, **kwargs)
+        self.icon_name = icon_name
+
+    def get_cell_context_data(self, instance, parent_context):
+        context = super().get_cell_context_data(instance, parent_context)
+
+        context.update(
+            {
+                "icon_name": self.icon_name,
+                "link_attrs": {
+                    "href": instance.website_url,
+                    "target": "_blank",
+                    # target=_blank without this hands the opened site a
+                    # window.opener handle back into the admin.
+                    "rel": "noopener noreferrer",
+                    "title": _("%(name)s website (opens in a new tab)") % {"name": instance.name},
+                },
+            }
+        )
+
+        return context
+
+    def get_value(self, instance):
+        return instance.website_url
+
+
 class SourceAuthorityViewSet(SnippetViewSet):
     model = SourceAuthority
     icon = "globe"
     menu_label = "Authorities"
-    list_display = ["name", "country", "slug", "feed_url", "feed_type_detected", "has_mqtt_credentials", "active"]
+    list_display = [
+        "name",
+        "country",
+        "slug",
+        LinkColumnWithIcon("website_url", label=_("Website"), icon_name="link-external"),
+        "feed_url",
+        "feed_type_detected",
+        "has_mqtt_credentials",
+        "active",
+    ]
     list_filter = ["country", "active"]
     search_fields = ["name", "slug", "sender_values"]
     inspect_view_enabled = True

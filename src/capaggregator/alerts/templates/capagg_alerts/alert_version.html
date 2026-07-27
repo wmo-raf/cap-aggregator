@@ -20,6 +20,7 @@
         <p class="text-sm text-muted-foreground">
             <span class="timeline-type timeline-type--{{ alert.msg_type|lower }}">{{ alert.msg_type }}</span>
             sent {{ alert.sent }} by <strong>{{ chain.authority.name }}</strong>
+            {% include "includes/_authority_website_link.html" with authority=chain.authority %}
         </p>
         <h1 class="text-2xl font-semibold">{{ alert.identifier }}</h1>
     </header>

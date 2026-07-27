@@ -1,4 +1,5 @@
 import secrets
+from urllib.parse import urlsplit, urlunsplit
 
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
@@ -83,7 +84,9 @@ class SourceAuthority(models.Model):
         verbose_name=_("CAP feed URL (RSS/ATOM)"), help_text=_("Required. e.g. https://<composer>/api/cap/rss.xml")
     )
     feed_type_detected = models.CharField(
-        max_length=5, blank=True, editable=False,
+        max_length=5,
+        blank=True,
+        editable=False,
         help_text=_("RSS/ATOM, sniffed from the feed during the first successful poll (display only)"),
     )
     feed_poll_interval_minutes = models.PositiveIntegerField(
@@ -146,9 +149,7 @@ class SourceAuthority(models.Model):
         verbose_name_plural = _("Source Authorities")
         ordering = ["country", "name"]
         constraints = [
-            models.UniqueConstraint(
-                fields=["wmo_guid"], condition=~Q(wmo_guid=""), name="unique_non_empty_wmo_guid"
-            ),
+            models.UniqueConstraint(fields=["wmo_guid"], condition=~Q(wmo_guid=""), name="unique_non_empty_wmo_guid"),
         ]
 
     def __str__(self):
@@ -161,6 +162,28 @@ class SourceAuthority(models.Model):
         # check at ingestion (see ingestion.validators._check_sender).
         if not self.feed_url:
             raise ValidationError({"feed_url": _("A CAP RSS/ATOM feed URL is required for every authority.")})
+
+    # cap-composer serves its CAP feed at this fixed path, always on the
+    # authority's own site — so its origin is a safe website fallback. Feeds at
+    # any other path may be hosted elsewhere (a registry, a shared portal), so
+    # we do NOT guess a website from those.
+    CLIMWEB_CAP_COMPOSER_FEED_PATH = "/api/cap/rss.xml"
+
+    @property
+    def website_url(self) -> str:
+        """The authority's public website, falling back to the origin of a
+        cap-composer feed URL (https://meteo.go.ke/api/cap/rss.xml →
+        https://meteo.go.ke). Returns "" if neither is available."""
+        if self.website:
+            return self.website
+        parts = urlsplit(self.feed_url or "")
+        if (
+            parts.scheme in ("http", "https")
+            and parts.netloc
+            and parts.path.rstrip("/").lower() == self.CLIMWEB_CAP_COMPOSER_FEED_PATH
+        ):
+            return urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+        return ""
 
     @property
     def has_mqtt_credentials(self) -> bool:

@@ -30,6 +30,15 @@ class AuthorityMonitorTests(TestCase):
         self.assertContains(response, "Kenya Met")
         self.assertContains(response, self.authority.feed_url)
 
+    def test_header_links_the_authority_website_when_one_is_known(self):
+        self.authority.website = "https://meteo.go.ke"
+        self.authority.save()
+
+        response = self.client.get(self._url())
+
+        self.assertContains(response, 'href="https://meteo.go.ke"')
+        self.assertContains(response, 'rel="noopener noreferrer"')
+
     def test_header_shows_last_poll_error_when_the_last_poll_failed(self):
         SourceEvent.objects.create(authority=self.authority, transport="poll", ok=False, error="DISTINCT-POLL-ERROR")
 
