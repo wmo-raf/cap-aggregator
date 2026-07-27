@@ -1,5 +1,5 @@
 {% extends "wagtailadmin/generic/inspect.html" %}
-{% load i18n %}
+{% load i18n wagtailadmin_tags %}
 
 {% block extra_css %}
     <style>
@@ -48,12 +48,31 @@
         .mqtt-actions__status--issued .mqtt-actions__dot {
             background: var(--w-color-positive-100);
         }
+
+        /* Trailing "opens in a new tab" marker on external links. */
+        .capagg-external-icon {
+            width: .8em;
+            height: .8em;
+            margin-inline-start: .35em;
+            vertical-align: -.05em;
+        }
     </style>
 {% endblock %}
 
 
 {% block main_content %}
     {{ block.super }}
+    {# Not an inspect_view_field: those render as inert text, and this needs to be an anchor. #}
+    {% if object.website_url %}
+        <section class="mqtt-actions">
+            <h2 class="mqtt-actions__header">{% trans "Website" %}</h2>
+            <div class="mqtt-actions__body">
+                <a href="{{ object.website_url }}" target="_blank" rel="noopener noreferrer">
+                    {{ object.website_url }}{% icon name="link-external" classname="capagg-external-icon" %}
+                </a>
+            </div>
+        </section>
+    {% endif %}
     <section class="mqtt-actions">
         <h2 class="mqtt-actions__header">{% trans "MQTT credentials" %}</h2>
         <div class="mqtt-actions__body">

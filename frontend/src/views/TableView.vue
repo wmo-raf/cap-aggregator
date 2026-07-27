@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-vue-next";
+import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -37,6 +37,8 @@ const alerts = ref<TableAlert[]>([]);
 const total = ref(0);
 const state = ref<"loading" | "ready" | "error">("loading");
 const countries = ref<{ code: string; name: string }[]>([]);
+/** Authority slug → website URL, for the group-header external links. */
+const authorityWebsites = ref(new Map<string, string>());
 
 const collapsed = ref(new Set<string>());
 
@@ -48,7 +50,7 @@ function toggleGroup(value: string) {
 
 /** The tbody, flattened: group headers (respecting collapse) then alert rows. */
 type DisplayRow =
-  | { kind: "header"; key: string; label: string; level: 0 | 1; color?: string }
+  | { kind: "header"; key: string; label: string; level: 0 | 1; color?: string; website?: string }
   | { kind: "alert"; key: string; alert: TableAlert };
 
 const displayRows = computed<DisplayRow[]>(() => {
@@ -70,7 +72,13 @@ const displayRows = computed<DisplayRow[]>(() => {
       if (collapsed.value.has(countryKey)) continue;
       for (const authority of country.authorities) {
         const authorityKey = `authority:${authority.key}`;
-        rows.push({ kind: "header", key: authorityKey, label: authority.name, level: 1 });
+        rows.push({
+          kind: "header",
+          key: authorityKey,
+          label: authority.name,
+          level: 1,
+          website: authorityWebsites.value.get(authority.slug),
+        });
         if (!collapsed.value.has(authorityKey)) pushAlerts(authority.items);
       }
     }
@@ -136,13 +144,18 @@ function fmt(value: string | null): string {
 onMounted(async () => {
   load();
   try {
+    // One request serves both the country filter and the group-header website
+    // links — alert rows carry only the authority slug, never its website.
+    const authorities = await fetchAuthorities();
     const seen = new Set<string>();
-    countries.value = (await fetchAuthorities())
+    countries.value = authorities
       .filter((a) => a.country && !seen.has(a.country) && seen.add(a.country))
       .map((a) => ({ code: a.country, name: a.country_name }))
       .sort((a, b) => a.name.localeCompare(b.name));
+    authorityWebsites.value = new Map(authorities.filter((a) => a.website).map((a) => [a.slug, a.website]));
   } catch {
     countries.value = [];
+    authorityWebsites.value = new Map();
   }
 });
 </script>
@@ -224,10 +237,10 @@ onMounted(async () => {
                     data-testid="group-header"
                     :data-level="row.level"
                   >
-                    <td colspan="7" class="px-3" :class="row.level === 0 ? 'py-2.5' : 'py-1.5 pl-8'">
+                    <td colspan="7" class="flex items-center gap-2 px-3" :class="row.level === 0 ? 'py-2.5' : 'py-1.5 pl-8'">
                       <button
                         type="button"
-                        class="flex w-full items-center justify-between gap-2 text-left"
+                        class="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
                         :class="row.level === 0 ? 'text-base font-semibold' : 'text-sm font-medium'"
                         :aria-expanded="!collapsed.has(row.key)"
                         @click="toggleGroup(row.key)"
@@ -247,6 +260,19 @@ onMounted(async () => {
                           aria-hidden="true"
                         />
                       </button>
+                      <!-- Outside the toggle button: an anchor may not nest inside a <button>. -->
+                      <a
+                        v-if="row.website"
+                        :href="row.website"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                        :aria-label="`${row.label} website (opens in a new tab)`"
+                        :title="`${row.label} website (opens in a new tab)`"
+                        data-testid="authority-website"
+                      >
+                        <ExternalLink class="size-3.5" aria-hidden="true" />
+                      </a>
                     </td>
                   </tr>
                   <tr

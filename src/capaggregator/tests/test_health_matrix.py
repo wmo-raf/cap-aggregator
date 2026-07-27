@@ -27,6 +27,16 @@ class HealthMatrixShapeTests(TestCase):
         self.assertEqual(len(row["statuses"]), 30)
         self.assertTrue(all(s == "gray" for s in row["statuses"]))
 
+    def test_row_carries_the_authority_website_for_the_panels_external_link(self):
+        create_source_authority(name="Kenya Met", website="https://meteo.go.ke")
+        create_source_authority(name="Feedless Met", country="ug", feed_url="https://feeds.example.test/ug.atom")
+
+        rows = {r["name"]: r for r in build_health_matrix(days=1)["authorities"]}
+
+        self.assertEqual(rows["Kenya Met"]["website"], "https://meteo.go.ke")
+        # No website and no cap-composer feed to derive one from: the panel renders no icon.
+        self.assertEqual(rows["Feedless Met"]["website"], "")
+
 
 class HealthMatrixStatusTests(TestCase):
     def setUp(self):

@@ -37,6 +37,7 @@
         <h1 class="text-2xl font-semibold">{{ resolved.headline|default:resolved.event }}</h1>
         <p class="text-sm text-muted-foreground">
             Issued by <strong>{{ chain.authority.name }}</strong>
+            {% include "includes/_authority_website_link.html" with authority=chain.authority %}
             &middot; sent {{ alert.sent }}
             &middot; <a href="{% url 'alert_xml' chain.pk %}" class="underline underline-offset-2 transition-colors hover:text-foreground">Raw CAP XML</a>
         </p>

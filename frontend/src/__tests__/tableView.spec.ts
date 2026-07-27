@@ -35,11 +35,11 @@ function feature(id: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function stubFetch(features: unknown[], total = features.length) {
+function stubFetch(features: unknown[], total = features.length, authorities: unknown[] = []) {
   const fetchMock = vi.fn((input: unknown) => {
     const url = String(input);
     const payload = url.startsWith("/api/authorities/")
-      ? { results: [], next: null }
+      ? { results: authorities, next: null }
       : { count: total, results: { features } };
     return Promise.resolve({ ok: true, json: () => Promise.resolve(payload) });
   });
@@ -107,6 +107,47 @@ describe("TableView", () => {
 
     const authorityHeaders = wrapper.findAll('[data-testid="group-header"][data-level="1"]');
     expect(authorityHeaders.map((h) => h.text())).toEqual(["Kenya Met Department", "Uganda Met Authority"]);
+  });
+
+  it("links an authority group header to its website, joining alerts to /api/authorities/ by slug", async () => {
+    stubFetch(
+      [feature(1), feature(2, { authority: "uganda-met", authority_name: "Uganda Met Authority" })],
+      2,
+      [
+        { name: "Kenya Met Department", slug: "kenya-met", country: "KE", country_name: "Kenya", website: "https://meteo.go.ke", active_alert_count: 1 },
+        // No website (neither field set nor a cap-composer feed to derive one from).
+        { name: "Uganda Met Authority", slug: "uganda-met", country: "UG", country_name: "Uganda", website: "", active_alert_count: 1 },
+      ],
+    );
+
+    const { wrapper } = await mountView("/table?group=country");
+    await flushPromises();
+
+    const links = wrapper.findAll('[data-testid="authority-website"]');
+    expect(links).toHaveLength(1);
+    expect(links[0].attributes("href")).toBe("https://meteo.go.ke");
+    expect(links[0].attributes("target")).toBe("_blank");
+    expect(links[0].attributes("rel")).toBe("noopener noreferrer");
+    expect(links[0].attributes("aria-label")).toBe("Kenya Met Department website (opens in a new tab)");
+  });
+
+  it("renders no website link when the authorities request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: unknown) => {
+        if (String(input).startsWith("/api/authorities/")) return Promise.reject(new Error("offline"));
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ count: 1, results: { features: [feature(1)] } }),
+        });
+      }),
+    );
+
+    const { wrapper } = await mountView("/table?group=country");
+    await flushPromises();
+
+    expect(wrapper.findAll('[data-testid="group-header"][data-level="1"]')).toHaveLength(1);
+    expect(wrapper.findAll('[data-testid="authority-website"]')).toHaveLength(0);
   });
 
   it("collapses a country group, hiding its authorities and alerts", async () => {

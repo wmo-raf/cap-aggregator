@@ -27,6 +27,20 @@ class AuthoritiesApiTests(TestCase):
         self.assertEqual(results[0]["country"], "KE")
         self.assertEqual(results[0]["website"], "https://meteo.go.ke")
 
+    def test_blank_website_falls_back_to_a_composer_feeds_origin(self):
+        create_source_authority(name="Kenya Met", feed_url="https://meteo.go.ke/api/cap/rss.xml")
+
+        results = self.list_authorities()
+
+        self.assertEqual(results[0]["website"], "https://meteo.go.ke")
+
+    def test_blank_website_stays_blank_for_a_non_composer_feed(self):
+        create_source_authority(name="Kenya Met", feed_url="https://feeds.example.test/ke/cap.atom")
+
+        results = self.list_authorities()
+
+        self.assertEqual(results[0]["website"], "")
+
     def test_inactive_authorities_are_not_listed(self):
         create_source_authority(name="Active Met", country="ke")
         create_source_authority(name="Retired Met", country="ug", sender_values=["r@x"], active=False)

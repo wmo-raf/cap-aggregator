@@ -20,15 +20,17 @@ def mqtt_consumer_connected() -> bool:
     from .models import SourceEvent
 
     latest = (
-        SourceEvent.objects.filter(transport="mqtt", authority__isnull=True)
-        .order_by("-occurred_at", "-id").first()
+        SourceEvent.objects.filter(transport="mqtt", authority__isnull=True).order_by("-occurred_at", "-id").first()
     )
     return latest.ok if latest is not None else True
 
 
 def _new_signal():
-    return {"states": set(), "latest_poll_ok": None,
-            "counts": {"stored": 0, "duplicate": 0, "quarantined": 0, "polls_ok": 0, "polls_failed": 0}}
+    return {
+        "states": set(),
+        "latest_poll_ok": None,
+        "counts": {"stored": 0, "duplicate": 0, "quarantined": 0, "polls_ok": 0, "polls_failed": 0},
+    }
 
 
 def _status(signal) -> str:
@@ -70,7 +72,9 @@ def build_health_matrix(*, days: int = 30, now=None, authority_id: int | None = 
 
     messages = (
         RawMessage.objects.filter(authority_id__in=auth_ids, received_at__date__gte=window_start)
-        .annotate(day=TruncDate("received_at")).values("authority_id", "day", "state").annotate(n=Count("id"))
+        .annotate(day=TruncDate("received_at"))
+        .values("authority_id", "day", "state")
+        .annotate(n=Count("id"))
     )
     for row in messages:
         signal = signals[(row["authority_id"], row["day"])]
@@ -104,6 +108,8 @@ def build_health_matrix(*, days: int = 30, now=None, authority_id: int | None = 
             "id": authority.id,
             "name": authority.name,
             "country": authority.country.code,
+            "country_name": authority.country.name,
+            "website": authority.website_url,
             "statuses": [_status(signals.get((authority.id, day))) for day in day_list],
             "detail_url": f"/admin/capagg-sources/{authority.id}/monitor/",
         }
