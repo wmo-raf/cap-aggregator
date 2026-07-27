@@ -3,7 +3,7 @@
 Planned admin surface (docs/design.md §8):
 - Authority registry with an "issue MQTT credentials" action showing the
   one-time password + copy-paste cap-composer broker instructions
-- Quarantine inbox with validation reports + notify-authority action
+- Withheld register with validation reports + dismiss actions
 - Ingestion monitor (RawMessage states, latency)
 - Geocode registry with bulk import
 """

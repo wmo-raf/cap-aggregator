@@ -199,7 +199,8 @@ Django apps → tables (all geometry EPSG:4326):
   sha256 (unique), received_at, sent_at (from CAP, for latency), state machine
   (received→validated→stored / quarantined / duplicate).
 - `QuarantinedMessage` — raw FK, report JSONB (per-check results), status
-  (pending/notified/resubmitted/dismissed).
+  (pending/dismissed). Surfaced to operators as the **Withheld** register; the model
+  and table names are unchanged.
 - `DeliveryReceipt` — authority FK, transport, alert FK, raw FK, `was_first`, received_at. One row
   per arrival per transport, including duplicates (see §1 duplicate resolution).
 
@@ -320,9 +321,9 @@ Wagtail 7 admin with per-app `wagtail_hooks.py` (cap-composer convention):
 - **Authority registry** — CRUD + "issue MQTT credentials" action (generates password, shows
   one-time secret, renders copy-paste instructions for the NMHS's cap-composer broker form);
   `sync_mosquitto` management command regenerates `passwd`/ACL and HUPs the broker.
-- **Quarantine inbox** — filterable list, per-message validation report, actions: notify authority
-  (email with report), re-run validation (task-ferry `quarantine_revalidation` job with live
-  progress), dismiss. Badge count in the admin menu.
+- **Withheld register** — read-only filterable list, per-message validation report, actions:
+  re-run validation (task-ferry `quarantine_revalidation` job with live progress), dismiss one
+  message, and bulk dismiss honouring the list's active filters. Badge count in the admin menu.
 - **Ingestion monitor** — RawMessage list with state, transport, latency; republish/reprocess.
 - **Geocode registry** — schemes, versioned values, bulk import (task-ferry `geocode_import` job:
   GeoJSON or CSV+WKT, with geometry-change versioning), resolution test tool.

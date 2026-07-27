@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from . import categories
@@ -121,15 +122,33 @@ class DeliveryReceipt(models.Model):
         return f"{self.transport} receipt for alert {self.alert_id} (first={self.was_first})"
 
 
-class QuarantinedMessage(models.Model):
-    """Invalid alerts are quarantined with a full validation report — never
-    silently dropped. The report is surfaced to the source authority
-    (data-quality feedback loop)."""
+class WithheldQuerySet(models.QuerySet):
+    def dismiss(self) -> int:
+        """Record the operator's verdict over these rows, one row or a filtered
+        batch — the register's only write, so it lives in one place.
 
+        `modified` is set explicitly because a queryset update never reaches
+        `auto_now`, and the timestamp is how an operator sees when a batch was
+        cleared.
+        """
+        return self.update(status="dismissed", modified=timezone.now())
+
+
+class QuarantinedMessage(models.Model):
+    """A message withheld from publication, kept with its full validation report
+    — never silently dropped. The report is surfaced to the source authority
+    (data-quality feedback loop).
+
+    The model, table and URL names still say "quarantine"; the operator-facing
+    label is "withheld", which is what the row actually records.
+    """
+
+    # Two states, because two are all anything can produce: a withheld message
+    # is either awaiting an operator's judgement or has had it. Notifying an
+    # authority and awaiting a resubmission are conversations that happen off
+    # this register, and nothing here ever wrote those values.
     STATUSES = (
         ("pending", _("Pending review")),
-        ("notified", _("Authority notified")),
-        ("resubmitted", _("Resubmitted")),
         ("dismissed", _("Dismissed")),
     )
 
@@ -144,11 +163,15 @@ class QuarantinedMessage(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
+    objects = WithheldQuerySet.as_manager()
+
     class Meta:
         ordering = ["-created"]
+        verbose_name = _("withheld message")
+        verbose_name_plural = _("withheld messages")
 
     def __str__(self):
-        return f"Quarantine #{self.pk} [{self.status}]"
+        return f"Withheld #{self.pk} [{self.status}]"
 
     def save(self, *args, **kwargs):
         # Derived once, at creation, from the report the row is created with —

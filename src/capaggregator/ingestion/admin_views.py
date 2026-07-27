@@ -2,8 +2,8 @@
 
 - Manual CAP backfill upload: stores an uploaded .xml/.zip under MEDIA_ROOT and
   starts the `cap_backfill` job.
-- Quarantine actions: re-run validation over pending messages (bulk), and dismiss
-  a single quarantined message.
+- Withheld-register actions: re-run validation over pending messages (bulk), and
+  dismiss a single withheld message.
 - The withheld inspect view: provenance, findings and the raw CAP, prepared here
   because a finding's link target is a routing decision, not a model concern.
 """
@@ -122,7 +122,7 @@ def authority_monitor(request, pk):
         "authority": authority,
         "last_poll": last_poll,
         "quarantine_pending_count": QuarantinedMessage.objects.filter(
-            raw_message__authority=authority, status__in=["pending", "notified"]
+            raw_message__authority=authority, status="pending"
         ).count(),
         "recent_messages": messages_qs[:5],
         "recent_events": events_qs[:5],
@@ -176,7 +176,7 @@ def backfill_upload(request):
 @require_admin_access
 @require_POST
 def quarantine_revalidate(request):
-    """Start the bulk re-validation sweep over all pending/notified messages."""
+    """Start the bulk re-validation sweep over every pending message."""
     job = JobHandler.create_and_start(request.user, "quarantine_revalidation")
     messages.success(
         request, _("Re-validation started. Track progress at /api/jobs/%(id)s/.") % {"id": job.id}
@@ -188,7 +188,6 @@ def quarantine_revalidate(request):
 @require_POST
 def quarantine_dismiss(request, pk):
     message = get_object_or_404(QuarantinedMessage, pk=pk)
-    message.status = "dismissed"
-    message.save(update_fields=["status", "modified"])
-    messages.success(request, _("Quarantined message dismissed."))
+    QuarantinedMessage.objects.filter(pk=message.pk).dismiss()
+    messages.success(request, _("Withheld message dismissed."))
     return redirect("/admin/snippets/capagg_ingestion/quarantinedmessage/")

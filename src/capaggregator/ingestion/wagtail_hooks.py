@@ -16,6 +16,8 @@ from .admin_views import (
     quarantine_dismiss,
     quarantine_revalidate,
 )
+from .bulk_actions import DismissBulkAction
+from .filters import WithheldFilterSet
 from .models import QuarantinedMessage, RawMessage, SourceEvent
 
 
@@ -39,18 +41,23 @@ class RawMessageViewSet(RelatedListingMixin, SnippetViewSet):
     permission_policy = ReadOnlyPermissionPolicy(RawMessage)
 
 
-class QuarantineViewSet(SnippetViewSet):
+class WithheldViewSet(RelatedListingMixin, SnippetViewSet):
     model = QuarantinedMessage
     icon = "warning"
-    menu_label = "Quarantine"
+    menu_label = "Withheld"
     list_display = ["raw_message", Column("category_label", label="Category"), "status", "created"]
-    list_filter = ["primary_category", "status", "raw_message__authority"]
+    # Declared as a filterset rather than `list_filter`, so bulk dismiss can
+    # answer "which rows is the operator looking at?" with the same code.
+    filterset_class = WithheldFilterSet
     inspect_view_enabled = True
     # The template renders provenance, findings and the raw CAP itself, so the
     # generic field table would only repeat it in a less legible order.
     inspect_view_class = WithheldInspectView
     inspect_template_name = "capagg_ingestion/quarantine_inspect.html"
     list_select_related = ["raw_message", "raw_message__authority"]
+    # Withheld messages are a record of decisions taken over immutable ingestion
+    # rows; dismissal is a separate action, not an edit.
+    permission_policy = ReadOnlyPermissionPolicy(QuarantinedMessage)
 
 
 class SourceEventViewSet(SnippetViewSet):
@@ -66,10 +73,12 @@ class SourceEventViewSet(SnippetViewSet):
 class IngestionGroup(SnippetViewSetGroup):
     menu_label = "Ingestion"
     menu_icon = "download"
-    items = [RawMessageViewSet, QuarantineViewSet, SourceEventViewSet]
+    items = [RawMessageViewSet, WithheldViewSet, SourceEventViewSet]
 
 
 register_snippet(IngestionGroup)
+
+hooks.register("register_bulk_action", DismissBulkAction)
 
 
 @hooks.register("register_admin_urls")

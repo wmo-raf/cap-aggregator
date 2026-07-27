@@ -310,14 +310,14 @@
                 </div>
             </section>
 
-            {# 6. Quarantine strip #}
+            {# 6. Withheld strip #}
             <section class="capagg-panel">
                 <h2 class="capagg-panel__header">
-                    {% trans "Quarantine" %}
-                    <a class="capagg-panel__link" href="{{ quarantine_all_url }}">{% trans "open inbox" %}</a>
+                    {% trans "Withheld" %}
+                    <a class="capagg-panel__link" href="{{ quarantine_all_url }}">{% trans "open register" %}</a>
                 </h2>
                 <div class="capagg-panel__body">
-                    {% blocktrans count count=quarantine_pending_count %}{{ count }} pending quarantined message.{% plural %}{{ count }} pending quarantined messages.{% endblocktrans %}
+                    {% blocktrans count count=quarantine_pending_count %}{{ count }} pending withheld message.{% plural %}{{ count }} pending withheld messages.{% endblocktrans %}
                 </div>
             </section>
 
