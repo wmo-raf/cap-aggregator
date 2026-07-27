@@ -217,7 +217,11 @@
                         </tr>
                         <tr>
                             <th>{% trans "Feed URL" %}</th>
-                            <td><code>{{ authority.feed_url }}</code> ({{ authority.feed_type_detected|default:"?" }})
+                            <td>
+                                <a href="{{ authority.feed_url }}" target="_blank" rel="noopener noreferrer">
+                                    <code>{{ authority.feed_url }}</code>{% icon name="link-external" classname="capagg-external-icon" %}
+                                </a>
+                                ({{ authority.feed_type_detected|default:"?" }})
                             </td>
                         </tr>
                         <tr>

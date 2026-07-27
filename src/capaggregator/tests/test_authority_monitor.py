@@ -41,6 +41,14 @@ class AuthorityMonitorTests(TestCase):
         self.assertContains(response, 'href="https://meteo.go.ke"')
         self.assertContains(response, 'rel="noopener noreferrer"')
 
+    def test_header_links_the_feed_url_in_a_new_tab(self):
+        """Checking what an authority is actually publishing is the first move
+        when their strip goes orange — the URL is a destination, not a fact."""
+        response = self.client.get(self._url())
+
+        self.assertContains(response, f'href="{self.authority.feed_url}"')
+        self.assertContains(response, 'rel="noopener noreferrer"')
+
     def test_header_shows_last_poll_error_when_the_last_poll_failed(self):
         SourceEvent.objects.create(authority=self.authority, transport="poll", ok=False, error="DISTINCT-POLL-ERROR")
 
