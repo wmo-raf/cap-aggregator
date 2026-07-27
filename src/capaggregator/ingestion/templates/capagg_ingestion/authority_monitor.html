@@ -142,6 +142,25 @@
             color: var(--w-color-grey-400);
         }
 
+        /* The count is the reading; the wording only says what it counts. */
+        .capagg-stat {
+            display: flex;
+            align-items: baseline;
+            gap: .6rem;
+        }
+
+        .capagg-stat__value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--w-color-text-label);
+        }
+
+        .capagg-stat__label {
+            font-size: .9rem;
+            color: var(--w-color-grey-400);
+        }
+
         .capagg-strip-error,
         .capagg-strip-empty {
             font-size: .9rem;
@@ -268,9 +287,12 @@
                         {% trans "Withheld" %}
                         <a class="capagg-panel__link" href="{{ quarantine_all_url }}">{% trans "open register" %}</a>
                     </h2>
-                    <div class="capagg-panel__body">
-                        {% blocktrans count count=quarantine_pending_count %}{{ count }} pending withheld message.
-                            {% plural %}{{ count }} pending withheld messages.{% endblocktrans %}
+                    <div class="capagg-panel__body capagg-stat">
+                        <span class="capagg-stat__value">{{ quarantine_pending_count }}</span>
+                        <span class="capagg-stat__label">
+                            {% blocktrans count count=quarantine_pending_count %}pending withheld message
+                                {% plural %}pending withheld messages{% endblocktrans %}
+                        </span>
                     </div>
                 </section>
 
@@ -279,9 +301,12 @@
                         {% trans "Defects" %}
                         <a class="capagg-panel__link" href="{{ defects_all_url }}">{% trans "open register" %}</a>
                     </h2>
-                    <div class="capagg-panel__body">
-                        {% blocktrans count count=defect_count %}{{ count }} defect recorded on published alerts.
-                            {% plural %}{{ count }} defects recorded on published alerts.{% endblocktrans %}
+                    <div class="capagg-panel__body capagg-stat">
+                        <span class="capagg-stat__value">{{ defect_count }}</span>
+                        <span class="capagg-stat__label">
+                            {% blocktrans count count=defect_count %}defect recorded on published alerts
+                                {% plural %}defects recorded on published alerts{% endblocktrans %}
+                        </span>
                     </div>
                 </section>
             </div>
