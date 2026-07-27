@@ -140,7 +140,8 @@
             <section class="capagg-panel">
                 <h2 class="capagg-panel__header">
                     {% trans "Registered authorities" %}
-                    <a class="button button-small button-secondary" href="{% url 'capagg_sources_wmo_registry' %}?refresh=1">
+                    <a class="button button-small button-secondary"
+                       href="{% url 'capagg_sources_wmo_registry' %}?refresh=1">
                         {% trans "Refresh" %}
                     </a>
                 </h2>
@@ -152,46 +153,49 @@
                             {% csrf_token %}
                             <div class="capagg-registry__toolbar">
                                 <input type="search" class="capagg-registry__search" data-registry-search
-                                       placeholder="{% trans 'Search country or authority…' %}" aria-label="{% trans 'Search' %}">
+                                       placeholder="{% trans 'Search country or authority…' %}"
+                                       aria-label="{% trans 'Search' %}">
                                 <button type="submit" class="button" data-registry-add hidden>
                                     {% trans "Add" %} <span data-registry-count>0</span> {% trans "selected" %}
                                 </button>
                             </div>
                             <table class="capagg-table">
                                 <thead>
-                                    <tr>
-                                        <th></th>
-                                        <th>{% trans "Country" %}</th>
-                                        <th>{% trans "Authority" %}</th>
-                                        <th>{% trans "Status" %}</th>
-                                    </tr>
+                                <tr>
+                                    <th></th>
+                                    <th>{% trans "Country" %}</th>
+                                    <th>{% trans "Authority" %}</th>
+                                    <th>{% trans "Status" %}</th>
+                                </tr>
                                 </thead>
                                 <tbody>
-                                    {% for group in groups %}
-                                        <tr class="capagg-section" data-registry-section>
-                                            <th colspan="4">{{ group.label }}</th>
-                                        </tr>
-                                        {% for sub in group.subgroups %}
-                                            {% if sub.label %}
-                                                <tr class="capagg-subsection" data-registry-subsection>
-                                                    <td colspan="4">{{ sub.label }}</td>
-                                                </tr>
-                                            {% endif %}
-                                            {% for row in sub.rows %}
+                                {% for group in groups %}
+                                    <tr class="capagg-section" data-registry-section>
+                                        <th colspan="4">{{ group.label }}</th>
+                                    </tr>
+                                    {% for sub in group.subgroups %}
+                                        {% if sub.label %}
+                                            <tr class="capagg-subsection" data-registry-subsection>
+                                                <td colspan="4">{{ sub.label }}</td>
+                                            </tr>
+                                        {% endif %}
+                                        {% for row in sub.rows %}
+                                            {% include "capagg_sources/_wmo_registry_row.html" %}
+                                        {% endfor %}
+                                        {% for inter in sub.subgroups %}
+                                            <tr class="capagg-subsubsection" data-registry-subsubsection>
+                                                <td colspan="4">{{ inter.label }}</td>
+                                            </tr>
+                                            {% for row in inter.rows %}
                                                 {% include "capagg_sources/_wmo_registry_row.html" %}
                                             {% endfor %}
-                                            {% for inter in sub.subgroups %}
-                                                <tr class="capagg-subsubsection" data-registry-subsubsection>
-                                                    <td colspan="4">{{ inter.label }}</td>
-                                                </tr>
-                                                {% for row in inter.rows %}
-                                                    {% include "capagg_sources/_wmo_registry_row.html" %}
-                                                {% endfor %}
-                                            {% endfor %}
                                         {% endfor %}
-                                    {% empty %}
-                                        <tr><td colspan="4">{% trans "No entries returned by the registry." %}</td></tr>
                                     {% endfor %}
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="4">{% trans "No entries returned by the registry." %}</td>
+                                    </tr>
+                                {% endfor %}
                                 </tbody>
                             </table>
                         </form>
