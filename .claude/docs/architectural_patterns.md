@@ -68,10 +68,27 @@ Two pluggable registries let features be added without editing the caller:
 
 Validation never raises to signal failure — it accumulates into a
 `ValidationReport` dataclass (`ingestion/validators.py:27`) with `errors` and
-`warnings`. **Errors → quarantine; warnings → published with the alert.** The
-report serializes to JSON (`as_dict()`) into `QuarantinedMessage.report`, and —
-for a message that publishes — into one `AlertDefect` row per finding. Nothing is
-ever silently dropped.
+`warnings`. Validation is a **conformance record, not a publication gate**: the
+authority already published the alert, so a finding is recorded against the
+published alert unless it makes publishing impossible or dishonest.
+`report.blocking_findings()` draws that line — the errors of checks in
+`categories.DEFECT_ONLY_CHECKS` (schema violations we can store and serve around)
+publish; everything else withholds. The report serializes to JSON (`as_dict()`)
+into `QuarantinedMessage.report`, and — for a message that publishes — into one
+`AlertDefect` row per finding. Nothing is ever silently dropped.
+
+Only a **well-formedness** failure stops the validation run; a schema-invalid
+tree still goes through signature, identity and every semantic rule, so one
+ingestion yields the complete defect list rather than the operator discovering
+the next fault after fixing this one.
+
+Because we have decided to publish before storing, **storing must not fail on
+content grounds** (`alerts/parser.py`): optional timestamps that cannot be read
+are stored null and over-length identity values are truncated, each recording a
+finding on the same report (the raw message keeps every original verbatim). Any
+remaining unexpected exception falls back to withheld with an `internal` finding
+and marks the raw message `failed` — transient `OperationalError`s are re-raised
+so the task's autoretry still owns them.
 
 Every finding's check name maps to one of seven categories through the single
 mapping in `ingestion/categories.py` (`schema` → `identity` → `signature` →
@@ -80,11 +97,12 @@ mapping in `ingestion/categories.py` (`schema` → `identity` → `signature` �
 scans the source for check names and fails the suite on an unmapped one, so
 there is no `uncategorised` value. `internal` is for our own faults — a crashing
 validator is recorded under `CHECK_INTERNAL`, not under the rule's own name, so
-our bug is never reported to an NMHS as a defect in their CAP. A quarantined
-message denormalizes
-its most upstream category onto `primary_category` at creation
-(`QuarantinedMessage.save()`), so admin list filtering is a SQL predicate rather
-than a JSON query.
+our bug is never reported to an NMHS as a defect in their CAP. A withheld
+message denormalizes its most upstream category onto `primary_category` at
+creation (`QuarantinedMessage.save()`, or explicitly by `run_pipeline` from the
+*blocking* findings alone — a defect we would have published through must never
+read as why we refused), so admin list filtering is a SQL predicate rather than
+a JSON query.
 
 ## Defect register: findings as immutable rows on the alert
 

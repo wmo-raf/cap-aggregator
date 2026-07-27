@@ -25,18 +25,24 @@ def cap_alert_xml(
     web="",
     polygon="-1.30,36.80 -1.30,36.90 -1.20,36.90 -1.20,36.80 -1.30,36.80",
     area=True,
+    altitude=None,
 ) -> str:
     """A schema-valid CAP 1.2 alert. Element order follows the CAP 1.2 sequence
     (note before references; effective before expires; audience before effective;
     web after instruction) so it passes XSD.
     `expires=None` omits the optional <expires> element (CAP allows that);
     `area=False` omits the whole <area> block, and `polygon` varies the shape —
-    both are schema-valid, so they exercise the semantic rules rather than XSD."""
+    both are schema-valid, so they exercise the semantic rules rather than XSD.
+    `altitude` is emitted verbatim, so a non-numeric value produces the XSD
+    violation that dominates the real backlog (a department name where the
+    schema wants a decimal)."""
     references_el = f"    <references>{references}</references>\n" if references else ""
+    altitude_el = f"            <altitude>{altitude}</altitude>\n" if altitude is not None else ""
     area_el = (
         "        <area>\n"
         "            <areaDesc>Nairobi</areaDesc>\n"
         f"            <polygon>{polygon}</polygon>\n"
+        f"{altitude_el}"
         "        </area>\n"
     ) if area else ""
     expires_el = f"        <expires>{expires}</expires>\n" if expires else ""

@@ -44,6 +44,9 @@ CHECK_INTERNAL = "internal"
 CHECK_CATEGORIES = {
     "xml-syntax": SCHEMA,
     "xsd": SCHEMA,
+    "sent-parseable": SCHEMA,
+    "datetime-format": CONTENT,
+    "field-length": CONTENT,
     "sender": IDENTITY,
     "signature": SIGNATURE,
     "reissue": REISSUE,
@@ -53,6 +56,21 @@ CHECK_CATEGORIES = {
     "polygon-sanity": CONTENT,
     CHECK_INTERNAL: INTERNAL,
 }
+
+
+# Checks whose errors are recorded against a *published* alert instead of
+# withholding it. The authority already published the alert on their own site and
+# feed, and a schema violation we can store and serve around is a conformance
+# defect, not a reason to be the only place the warning is missing.
+#
+# `xml-syntax` and `sent-parseable` are deliberately absent although they are
+# `schema` too: without a tree there is nothing to store, and without a readable
+# <sent> the CAP identity triple cannot be formed.
+#
+# Findings raised while storing (`datetime-format`, `field-length`) are recorded
+# after the publication decision has been taken, so they never reach this set —
+# they cannot withhold anything by construction.
+DEFECT_ONLY_CHECKS = frozenset({"xsd"})
 
 
 def category_for_check(check: str) -> str:

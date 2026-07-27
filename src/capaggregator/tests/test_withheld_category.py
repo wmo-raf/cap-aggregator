@@ -40,11 +40,12 @@ class WithheldCategoryTests(TestCase):
 
         self.assertEqual(message.primary_category, categories.SCHEMA)
 
-    def test_schema_invalid_xml_is_schema(self):
-        # <msgType> is mandatory in CAP 1.2 — well-formed, but XSD-invalid.
-        xml = cap_alert_xml().replace("    <msgType>Alert</msgType>\n", "")
-
-        message = self._withhold(xml)
+    def test_an_unreadable_sent_is_schema(self):
+        # The one XSD-adjacent fault we still cannot publish through: without a
+        # readable <sent> the CAP identity triple cannot be formed. Every other
+        # schema violation now publishes with defects recorded
+        # (test_publish_with_defects).
+        message = self._withhold(cap_alert_xml(sent="not-a-date"))
 
         self.assertEqual(message.primary_category, categories.SCHEMA)
 

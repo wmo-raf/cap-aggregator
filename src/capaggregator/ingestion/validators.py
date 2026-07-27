@@ -1,16 +1,19 @@
 """Layered CAP validation with a pluggable rule registry.
 
 Each validator receives the parsed lxml tree + context and appends findings to
-the report. Errors → quarantine; warnings → stored with the alert and counted
-against the source's quality score.
+the report. Validation is a conformance record, not a publication gate: a
+finding is a defect recorded against the published alert unless it is one of the
+few that make publishing impossible or dishonest (`DEFECT_ONLY_CHECKS` draws
+that line; `blocking_findings()` applies it).
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from lxml import etree
 
-from .categories import CHECK_INTERNAL
+from .categories import CHECK_INTERNAL, DEFECT_ONLY_CHECKS, classify_report
 
 CAP_NS = "urn:oasis:names:tc:emergency:cap:1.2"
 CAP = f"{{{CAP_NS}}}"
@@ -31,9 +34,21 @@ class ValidationReport:
     errors: list[dict] = field(default_factory=list)
     warnings: list[dict] = field(default_factory=list)
 
-    @property
-    def has_errors(self) -> bool:
-        return bool(self.errors)
+    def blocking_findings(self) -> list[dict]:
+        """The errors that withhold publication.
+
+        Everything else — a schema violation we can store and serve around — is
+        recorded against the alert we publish instead.
+        """
+        return [e for e in self.errors if e["check"] not in DEFECT_ONLY_CHECKS]
+
+    def blocking_category(self) -> str:
+        """The category to file a withheld message under.
+
+        Derived from the blocking findings alone: a defect we would have
+        published through must never read as why we refused.
+        """
+        return classify_report({"errors": self.blocking_findings(), "warnings": []})
 
     def error(self, check: str, message: str):
         self.errors.append({"check": check, "message": message})
@@ -41,8 +56,9 @@ class ValidationReport:
     def warn(self, check: str, message: str):
         self.warnings.append({"check": check, "message": message})
 
-    def error_summary(self) -> str:
-        return "; ".join(e["message"] for e in self.errors)
+    def blocking_summary(self) -> str:
+        """One line naming why the message is unpublished — for the log."""
+        return "; ".join(f["message"] for f in self.blocking_findings())
 
     def as_dict(self) -> dict:
         return {"errors": self.errors, "warnings": self.warnings}
@@ -84,29 +100,52 @@ validator_registry = ValidatorRegistry()
 def run_validators(raw) -> ValidationReport:
     report = ValidationReport()
 
-    # 1. Well-formedness + XSD
+    # 1. Well-formedness — the one failure that stops the run: with no tree
+    #    there is nothing left to check.
     try:
         tree = etree.fromstring(raw.xml.encode())
     except etree.XMLSyntaxError as ex:
         report.error("xml-syntax", str(ex))
         return report
 
+    # 2. XSD. A schema violation no longer ends the run: the message goes
+    #    through every remaining check so one ingestion yields the complete
+    #    defect list, instead of the operator discovering the next fault only
+    #    after fixing this one.
     schema = get_schema()
     if not schema.validate(tree):
         for err in schema.error_log:
             report.error("xsd", f"line {err.line}: {err.message}")
-        return report
 
-    # 2. Signature (policy per authority)
+    # 3. The one schema fault we cannot publish through
+    _check_sent(tree, raw, report)
+
+    # 4. Signature (policy per authority)
     _check_signature(tree, raw, report)
 
-    # 3. Identity: sender must match the authority bound to the topic/token
+    # 5. Identity: sender must match the authority bound to the topic/token
     _check_sender(tree, raw, report)
 
-    # 4. Semantic rules (registry)
+    # 6. Semantic rules (registry)
     validator_registry.run_all(tree, raw, report)
 
     return report
+
+
+def _check_sent(tree, raw, report):
+    """<sent> must be readable as a datetime.
+
+    It is a third of the CAP identity triple, so a value we cannot parse leaves
+    the alert with no identity to store under, dedup against or supersede — the
+    one XSD-adjacent fault that keeps a message unpublished.
+    """
+    sent = (tree.findtext(f"{CAP}sent") or "").strip()
+    try:
+        datetime.fromisoformat(sent)
+    except ValueError:
+        report.error("sent-parseable",
+                     f"<sent> value '{sent}' cannot be read as a datetime — the CAP identity "
+                     f"triple (sender, identifier, sent) cannot be formed")
 
 
 def _check_signature(tree, raw, report):
@@ -212,7 +251,7 @@ def check_reissue(tree, raw, report):
     Deliberate supersession (<references> present) is exempt — that is what
     msgType Update/Cancel is for, and lineage handles it correctly.
     """
-    from datetime import datetime, timedelta
+    from datetime import timedelta
 
     from django.conf import settings
 
