@@ -10,16 +10,16 @@ from wagtail.admin.ui.tables import Column, TitleColumn
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
-from capaggregator.utils.admin import ReadOnlyPermissionPolicy
+from capaggregator.utils.admin import ReadOnlyPermissionPolicy, RelatedListingMixin
 
 from .models import Alert, AlertDefect
 
 ALERT_INSPECT_URL_NAME = "wagtailsnippets_capagg_alerts_alert:inspect"
 
 
-class AlertDefectViewSet(SnippetViewSet):
+class AlertDefectViewSet(RelatedListingMixin, SnippetViewSet):
     model = AlertDefect
-    icon = "warning"
+    icon = "clipboard-list"
     menu_label = "Defects"
     list_display = [
         "created",
@@ -31,20 +31,12 @@ class AlertDefectViewSet(SnippetViewSet):
         "severity",
         "message",
     ]
-    list_filter = ["category", "severity", "alert__authority"]
-    inspect_view_enabled = True
-    inspect_view_fields = ["alert", "category", "check_name", "severity", "message", "created"]
+    list_filter = ["category", "alert__authority"]
+    list_select_related = ["alert", "alert__authority"]
     permission_policy = ReadOnlyPermissionPolicy(AlertDefect)
 
-    def get_queryset(self, request):
-        # The list shows the alert and its authority on every row.
-        qs = super().get_queryset(request)
-        if qs is None:
-            qs = self.model._default_manager.all()
-        return qs.select_related("alert", "alert__authority")
 
-
-class AlertViewSet(SnippetViewSet):
+class AlertViewSet(RelatedListingMixin, SnippetViewSet):
     model = Alert
     icon = "warning"
     menu_label = "Alerts"
@@ -57,19 +49,16 @@ class AlertViewSet(SnippetViewSet):
         Column("defect_count", label="Defects"),
     ]
     list_filter = ["msg_type", "status", "authority"]
+    list_select_related = ["authority"]
     inspect_view_enabled = True
     inspect_view_fields = [
         "identifier", "sender", "sent", "msg_type", "status", "scope", "authority",
         "references", "note", "signature_valid", "defect_count", "created",
     ]
+    # The info blocks, areas and defects an alert carries are listed by the
+    # template below — inspect_view_fields only renders scalar columns.
     inspect_template_name = "capagg_alerts/alert_inspect.html"
     permission_policy = ReadOnlyPermissionPolicy(Alert)
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        if qs is None:
-            qs = self.model._default_manager.all()
-        return qs.select_related("authority")
 
 
 class AlertsGroup(SnippetViewSetGroup):

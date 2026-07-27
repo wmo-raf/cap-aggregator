@@ -4,24 +4,25 @@
 {% block extra_css %}
     {{ block.super }}
     <style>
-        .capagg-defects {
+        .capagg-inspect-section {
             padding-top: 1.5em;
         }
-        .capagg-defects table {
+        .capagg-inspect-section table {
             width: 100%;
             border-collapse: collapse;
         }
-        .capagg-defects th,
-        .capagg-defects td {
+        .capagg-inspect-section th,
+        .capagg-inspect-section td {
             padding: 0.5em 1em 0.5em 0;
             text-align: left;
             vertical-align: top;
             border-bottom: 1px solid var(--w-color-border-furniture);
         }
-        .capagg-defects th {
+        .capagg-inspect-section th {
             color: var(--w-color-text-label);
+            white-space: nowrap;
         }
-        .capagg-defect-empty {
+        .capagg-inspect-empty {
             color: var(--w-color-grey-400);
         }
     </style>
@@ -29,7 +30,67 @@
 
 {% block main_content %}
     {{ block.super }}
-    <div class="nice-padding capagg-defects">
+
+    {% for info in object.infos.all %}
+        <div class="nice-padding capagg-inspect-section">
+            <h2>{% blocktrans with language=info.language %}Info ({{ language }}){% endblocktrans %}</h2>
+            <table>
+                <tr><th>{% trans "Event" %}</th><td>{{ info.event }}</td></tr>
+                <tr><th>{% trans "Categories" %}</th><td>{{ info.categories|join:", " }}</td></tr>
+                <tr><th>{% trans "Urgency" %}</th><td>{{ info.urgency }}</td></tr>
+                <tr><th>{% trans "Severity" %}</th><td>{{ info.severity }}</td></tr>
+                <tr><th>{% trans "Certainty" %}</th><td>{{ info.certainty }}</td></tr>
+                <tr><th>{% trans "Effective" %}</th><td>{{ info.effective|default_if_none:"—" }}</td></tr>
+                <tr><th>{% trans "Onset" %}</th><td>{{ info.onset|default_if_none:"—" }}</td></tr>
+                <tr><th>{% trans "Expires" %}</th><td>{{ info.expires|default_if_none:"—" }}</td></tr>
+                <tr><th>{% trans "Sender name" %}</th><td>{{ info.sender_name }}</td></tr>
+                <tr><th>{% trans "Headline" %}</th><td>{{ info.headline }}</td></tr>
+                <tr><th>{% trans "Description" %}</th><td>{{ info.description|linebreaksbr }}</td></tr>
+                <tr><th>{% trans "Instruction" %}</th><td>{{ info.instruction|linebreaksbr }}</td></tr>
+                <tr><th>{% trans "Web" %}</th><td>{{ info.web }}</td></tr>
+                <tr><th>{% trans "Contact" %}</th><td>{{ info.contact }}</td></tr>
+                <tr><th>{% trans "Parameters" %}</th><td>{{ info.parameters }}</td></tr>
+            </table>
+
+            <h3>{% trans "Areas" %}</h3>
+            {% if info.areas.all %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>{% trans "Description" %}</th>
+                            <th>{% trans "Geometry" %}</th>
+                            <th>{% trans "Geocodes" %}</th>
+                            <th>{% trans "Altitude" %}</th>
+                            <th>{% trans "Ceiling" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for area in info.areas.all %}
+                            <tr>
+                                <td>{{ area.area_desc }}</td>
+                                <td>
+                                    {% if area.geom %}
+                                        {% if area.is_circle_derived %}{% trans "circle" %}
+                                        {% elif area.is_geocode_derived %}{% trans "geocode" %}
+                                        {% else %}{% trans "polygon" %}{% endif %}
+                                    {% else %}
+                                        <span class="capagg-inspect-empty">{% trans "none" %}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ area.geocodes }}</td>
+                                <td>{{ area.altitude|default_if_none:"—" }}</td>
+                                <td>{{ area.ceiling|default_if_none:"—" }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="capagg-inspect-empty">{% trans "No areas on this info block." %}</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+
+    <div class="nice-padding capagg-inspect-section">
         <h2>{% trans "Defects" %}</h2>
         {% if object.defects.all %}
             <table>
@@ -55,7 +116,7 @@
                 </tbody>
             </table>
         {% else %}
-            <p class="capagg-defect-empty">{% trans "No defects recorded for this alert." %}</p>
+            <p class="capagg-inspect-empty">{% trans "No defects recorded for this alert." %}</p>
         {% endif %}
     </div>
 {% endblock %}

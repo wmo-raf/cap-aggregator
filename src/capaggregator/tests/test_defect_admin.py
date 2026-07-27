@@ -118,6 +118,21 @@ class AlertInspectTests(AdminSurfaceTestCase):
 
         self.assertContains(response, "URN:DISTINCTIVE-ID")
 
+    def test_an_alerts_view_shows_the_content_of_its_info_blocks_and_areas(self):
+        # What an operator opens the view to read — the CAP body, not just the
+        # envelope. Without this there is still no alternative to a shell.
+        alert = create_cap_alert(self.authority)
+        info = alert.infos.get()
+        info.areas.create(area_desc="Tana River Basin", geocodes={"ISO3166-2": ["KE-40"]})
+
+        response = self.client.get(reverse(ALERT_INSPECT, args=[alert.pk]))
+
+        self.assertContains(response, "Flood Warning")
+        self.assertContains(response, "Flooding expected along the coast")
+        self.assertContains(response, "Move to higher ground.")
+        self.assertContains(response, "Tana River Basin")
+        self.assertContains(response, "KE-40")
+
     def test_alerts_are_not_editable(self):
         alert = create_cap_alert(self.authority)
 

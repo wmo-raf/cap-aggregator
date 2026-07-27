@@ -64,6 +64,18 @@ class Alert(models.Model):
     def __str__(self):
         return f"{self.identifier} ({self.msg_type}, {self.sent:%Y-%m-%d %H:%M})"
 
+    def refresh_defect_count(self) -> int:
+        """Re-derive `defect_count` from the register it summarizes.
+
+        Counted from the rows rather than from however many were just written,
+        so the denormalized column cannot drift from the defects it stands for.
+        """
+        count = self.defects.count()
+        if count != self.defect_count:
+            Alert.objects.filter(pk=self.pk).update(defect_count=count)
+            self.defect_count = count
+        return count
+
 
 class AlertDefect(models.Model):
     """One validation finding, kept for as long as the alert it was found on.
@@ -127,14 +139,7 @@ class AlertDefect(models.Model):
         ]
         if rows:
             cls.objects.bulk_create(rows)
-
-        # Counted from the rows themselves rather than from len(rows), so the
-        # denormalized column can never drift from the register it summarizes.
-        count = alert.defects.count()
-        if count != alert.defect_count:
-            Alert.objects.filter(pk=alert.pk).update(defect_count=count)
-            alert.defect_count = count
-        return count
+        return alert.refresh_defect_count()
 
 
 class AlertInfo(models.Model):

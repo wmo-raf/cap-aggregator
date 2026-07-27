@@ -6,7 +6,7 @@ from wagtail.admin.ui.tables import Column
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
-from capaggregator.utils.admin import ReadOnlyPermissionPolicy
+from capaggregator.utils.admin import ReadOnlyPermissionPolicy, RelatedListingMixin
 
 from .admin_views import (
     authority_monitor,
@@ -18,7 +18,7 @@ from .admin_views import (
 from .models import QuarantinedMessage, RawMessage, SourceEvent
 
 
-class RawMessageViewSet(SnippetViewSet):
+class RawMessageViewSet(RelatedListingMixin, SnippetViewSet):
     model = RawMessage
     icon = "download"
     menu_label = "Raw Messages"
@@ -33,13 +33,8 @@ class RawMessageViewSet(SnippetViewSet):
     ]
     list_filter = ["state", "transport", "authority"]
     inspect_view_enabled = True
-
-    def get_queryset(self, request):
-        # Prefetch so the `alert_title` column doesn't fire per-row queries.
-        qs = super().get_queryset(request)
-        if qs is None:
-            qs = self.model._default_manager.all()
-        return qs.prefetch_related("alerts__infos")
+    # The `alert_title` column walks into the alert's info blocks.
+    list_prefetch_related = ["alerts__infos"]
     permission_policy = ReadOnlyPermissionPolicy(RawMessage)
 
 

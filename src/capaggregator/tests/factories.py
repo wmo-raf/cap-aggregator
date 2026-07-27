@@ -117,8 +117,7 @@ def create_alert_defect(authority=None, alert=None, check_name="polygon-sanity",
         alert=alert, category=category_for_check(check_name), check_name=check_name,
         message=message, severity=severity,
     )
-    alert.defect_count = alert.defects.count()
-    alert.save(update_fields=["defect_count"])
+    alert.refresh_defect_count()
     return defect
 
 
