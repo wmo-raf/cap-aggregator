@@ -84,8 +84,7 @@ class QuarantineRevalidationJobType(JobType):
 
         from .models import QuarantinedMessage
 
-        qs = QuarantinedMessage.objects.filter(status__in=["pending", "notified"]) \
-                                       .select_related("raw_message")
+        qs = QuarantinedMessage.objects.filter(status="pending").select_related("raw_message")
         if job.authority_id:
             qs = qs.filter(raw_message__authority_id=job.authority_id)
 

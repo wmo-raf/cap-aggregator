@@ -18,3 +18,11 @@ class HealthPanelTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "capagg-health-panel")
         self.assertContains(response, reverse("capagg_ingestion_health_api"))
+
+    def test_panel_ships_the_conformance_marker_and_its_legend(self):
+        response = self.client.get(reverse("wagtailadmin_home"))
+
+        # The marker itself is painted from the payload's defect counts; what is
+        # server-rendered is the class it hangs on and the legend explaining it.
+        self.assertContains(response, "capagg-cell--defective")
+        self.assertContains(response, "Non-conformant CAP")

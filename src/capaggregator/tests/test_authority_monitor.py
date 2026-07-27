@@ -8,6 +8,8 @@ from django.urls import reverse
 
 from capaggregator.ingestion.models import SourceEvent
 from capaggregator.tests.factories import (
+    create_alert_defect,
+    create_cap_alert,
     create_quarantined_message,
     create_raw_message,
     create_source_authority,
@@ -39,6 +41,14 @@ class AuthorityMonitorTests(TestCase):
         self.assertContains(response, 'href="https://meteo.go.ke"')
         self.assertContains(response, 'rel="noopener noreferrer"')
 
+    def test_header_links_the_feed_url_in_a_new_tab(self):
+        """Checking what an authority is actually publishing is the first move
+        when their strip goes orange — the URL is a destination, not a fact."""
+        response = self.client.get(self._url())
+
+        self.assertContains(response, f'href="{self.authority.feed_url}"')
+        self.assertContains(response, 'rel="noopener noreferrer"')
+
     def test_header_shows_last_poll_error_when_the_last_poll_failed(self):
         SourceEvent.objects.create(authority=self.authority, transport="poll", ok=False, error="DISTINCT-POLL-ERROR")
 
@@ -63,6 +73,45 @@ class AuthorityMonitorTests(TestCase):
         response = self.client.get(self._url())
 
         self.assertEqual(response.context["quarantine_pending_count"], 1)
+
+    def test_defect_strip_counts_this_authoritys_defects(self):
+        alert = create_cap_alert(self.authority)
+        create_alert_defect(alert=alert, check_name="polygon-sanity")
+        create_alert_defect(alert=alert, check_name="xsd")
+        other = create_source_authority(name="Aba Met", country="aa", sender_values=["a@x"])
+        create_alert_defect(alert=create_cap_alert(other))
+
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.context["defect_count"], 2)
+
+    def test_defect_strip_excludes_our_own_internal_faults(self):
+        alert = create_cap_alert(self.authority)
+        create_alert_defect(alert=alert, check_name="polygon-sanity")
+        create_alert_defect(alert=alert, check_name="internal")
+
+        response = self.client.get(self._url())
+
+        self.assertEqual(response.context["defect_count"], 1)
+
+    def test_defect_strip_renders_beside_the_withheld_strip(self):
+        create_alert_defect(alert=create_cap_alert(self.authority))
+
+        response = self.client.get(self._url())
+
+        self.assertContains(response, "Defects")
+        # Both halves of a source's data quality, reachable from one place.
+        self.assertContains(response, response.context["defects_all_url"])
+        self.assertContains(response, response.context["quarantine_all_url"])
+
+    def test_defect_register_link_filters_to_this_authority(self):
+        response = self.client.get(self._url())
+
+        self.assertEqual(
+            response.context["defects_all_url"],
+            reverse("wagtailsnippets_capagg_alerts_alertdefect:list")
+            + f"?alert__authority={self.authority.id}",
+        )
 
     def test_monitor_requires_login(self):
         self.client.logout()

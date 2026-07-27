@@ -46,7 +46,8 @@ def create_source_event(authority=None, ok=True, transport="poll", occurred_at=N
     return event
 
 
-def create_quarantined_message(authority=None, report=None, status="pending"):
+def create_quarantined_message(authority=None, report=None, status="pending", xml="<alert/>",
+                               transport="manual", topic=""):
     """A RawMessage + its QuarantinedMessage, without running the pipeline."""
     from capaggregator.ingestion.models import QuarantinedMessage, RawMessage
 
@@ -54,8 +55,9 @@ def create_quarantined_message(authority=None, report=None, status="pending"):
         report = {"errors": [{"check": "sender", "message": "sender not registered"}], "warnings": []}
     raw = RawMessage.objects.create(
         authority=authority,
-        transport="manual",
-        xml="<alert/>",
+        transport=transport,
+        topic=topic,
+        xml=xml,
         sha256=uuid.uuid4().hex + uuid.uuid4().hex,
         state="quarantined",
     )
@@ -103,6 +105,29 @@ def create_cap_alert(
         defaults.update(info_kwargs)
         AlertInfo.objects.create(alert=alert, **defaults)
     return alert
+
+
+def create_alert_defect(authority=None, alert=None, check_name="polygon-sanity", message="ring not closed",
+                        severity="warning", created=None):
+    """An AlertDefect on its own alert, with the category the check maps to.
+    `created` (auto_now_add) is backdated if given. `authority` only decides who
+    publishes a *new* alert — pass one or the other, not both."""
+    from capaggregator.alerts.models import AlertDefect
+    from capaggregator.ingestion.categories import category_for_check
+
+    if alert is not None and authority is not None:
+        raise TypeError("pass either `alert` or `authority`, not both")
+    if alert is None:
+        alert = create_cap_alert(authority or create_source_authority())
+    defect = AlertDefect.objects.create(
+        alert=alert, category=category_for_check(check_name), check_name=check_name,
+        message=message, severity=severity,
+    )
+    if created is not None:
+        AlertDefect.objects.filter(pk=defect.pk).update(created=created)
+        defect.created = created
+    alert.refresh_defect_count()
+    return defect
 
 
 def create_event_chain(authority=None, alert=None, is_cancelled=False, resolved_kwargs=None, **alert_kwargs):

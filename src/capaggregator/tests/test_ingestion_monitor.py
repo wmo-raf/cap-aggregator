@@ -11,7 +11,7 @@ from django.urls import reverse
 
 from capaggregator.ingestion.models import RawMessage
 from capaggregator.ingestion.tasks import ingest_raw_message
-from capaggregator.tests.cap_samples import cap_alert_xml
+from capaggregator.tests.cap_samples import NOT_WELL_FORMED_XML, cap_alert_xml
 from capaggregator.tests.factories import create_source_authority
 
 
@@ -27,9 +27,10 @@ class IngestLatencyTests(TestCase):
         self.assertEqual(raw.ingest_latency, raw.received_at - raw.sent_at)
         self.assertGreater(raw.ingest_latency, timedelta(0))
 
-    def test_quarantined_message_without_sent_time_has_no_latency(self, _resolve_lineage):
+    def test_withheld_message_without_sent_time_has_no_latency(self, _resolve_lineage):
+        # Not well-formed, so nothing — including <sent> — could be read from it.
         result = ingest_raw_message(
-            transport="manual", xml=cap_alert_xml(sender="unregistered@x.test"), authority_id=self.authority.id
+            transport="manual", xml=NOT_WELL_FORMED_XML, authority_id=self.authority.id
         )
 
         raw = RawMessage.objects.get(id=result["raw_id"])

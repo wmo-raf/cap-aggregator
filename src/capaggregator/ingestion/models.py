@@ -1,5 +1,8 @@
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+
+from . import categories
 
 
 class RawMessage(models.Model):
@@ -119,40 +122,128 @@ class DeliveryReceipt(models.Model):
         return f"{self.transport} receipt for alert {self.alert_id} (first={self.was_first})"
 
 
-class QuarantinedMessage(models.Model):
-    """Invalid alerts are quarantined with a full validation report — never
-    silently dropped. The report is surfaced to the source authority
-    (data-quality feedback loop)."""
+class WithheldQuerySet(models.QuerySet):
+    def dismiss(self) -> int:
+        """Record the operator's verdict over these rows, one row or a filtered
+        batch — the register's only write, so it lives in one place.
 
+        `modified` is set explicitly because a queryset update never reaches
+        `auto_now`, and the timestamp is how an operator sees when a batch was
+        cleared.
+        """
+        return self.update(status="dismissed", modified=timezone.now())
+
+
+class QuarantinedMessage(models.Model):
+    """A message withheld from publication, kept with its full validation report
+    — never silently dropped. The report is surfaced to the source authority
+    (data-quality feedback loop).
+
+    The model, table and URL names still say "quarantine"; the operator-facing
+    label is "withheld", which is what the row actually records.
+    """
+
+    # Two states, because two are all anything can produce: a withheld message
+    # is either awaiting an operator's judgement or has had it. Notifying an
+    # authority and awaiting a resubmission are conversations that happen off
+    # this register, and nothing here ever wrote those values.
     STATUSES = (
         ("pending", _("Pending review")),
-        ("notified", _("Authority notified")),
-        ("resubmitted", _("Resubmitted")),
         ("dismissed", _("Dismissed")),
     )
 
     raw_message = models.OneToOneField(RawMessage, on_delete=models.CASCADE, related_name="quarantine")
     report = models.JSONField(default=dict, help_text=_("Per-check validation results"))
+    primary_category = models.CharField(
+        max_length=20, choices=categories.CATEGORY_CHOICES, blank=True, db_index=True,
+        help_text=_("Most upstream category among this message's findings — denormalized from the "
+                    "report at creation so the list filters with a SQL predicate"),
+    )
     status = models.CharField(max_length=20, choices=STATUSES, default="pending")
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
 
+    objects = WithheldQuerySet.as_manager()
+
     class Meta:
         ordering = ["-created"]
+        verbose_name = _("withheld message")
+        verbose_name_plural = _("withheld messages")
 
     def __str__(self):
-        return f"Quarantine #{self.pk} [{self.status}]"
+        return f"Withheld #{self.pk} [{self.status}]"
+
+    def save(self, *args, **kwargs):
+        # Derived once, at creation, from the report the row is created with —
+        # so no caller can forget it, and a later status change (dismissal)
+        # never rewrites the category of a message we already classified.
+        if self._state.adding and not self.primary_category:
+            self.primary_category = categories.classify_report(self.report)
+        super().save(*args, **kwargs)
 
     @property
-    def report_summary(self) -> str:
-        """Flatten the per-check report into legible text for the admin detail view."""
-        lines = []
-        for severity in ("errors", "warnings"):
-            entries = self.report.get(severity) or []
-            if entries:
-                lines.append(f"{severity.capitalize()}:")
-                lines += [f"  [{e.get('check', '?')}] {e.get('message', '')}" for e in entries]
-        return "\n".join(lines) or _("No issues recorded")
+    def category_label(self) -> str:
+        """Category for the list column — blank rows (created before this field
+        existed) read as an em dash until a re-validation sweep re-creates them."""
+        return self.get_primary_category_display() or "—"
+
+    @property
+    def findings(self) -> list[dict]:
+        """Every finding in one list, errors first.
+
+        One list rather than two headed sections: a typical message carries one
+        to three findings, and what the operator needs first is the blocking
+        problem — not a heading telling them which section they are in.
+        """
+        return [
+            {"severity": severity,
+             "check": entry.get("check", ""),
+             "category": categories.category_for_check(entry.get("check", "")),
+             "message": entry.get("message", ""),
+             "context": entry.get("context") or {}}
+            for severity, key in (("error", "errors"), ("warning", "warnings"))
+            for entry in (self.report.get(key) or [])
+        ]
+
+    @property
+    def cap_identity(self) -> dict:
+        """The CAP identity triple, read back from the stored message.
+
+        There is no Alert to read it from — that is the point of the row — but
+        an authority identifies one of their own messages by <identifier>, not
+        by our checksum. Empty when the message is too broken to parse.
+        """
+        from capaggregator.alerts.parser import parse_identity
+
+        return parse_identity(self.raw_message.xml) or {}
+
+    def copy_report(self) -> str:
+        """A plain-text report of this message, for pasting into an email.
+
+        The follow-up conversation with the publisher is the entire point of
+        validating, so this has to stand on its own: who sent what, when, and
+        everything wrong with it.
+        """
+        raw = self.raw_message
+        identity = self.cap_identity
+        lines = [
+            f"CAP message withheld — {self.get_primary_category_display() or _('uncategorised')}",
+            "",
+            f"Authority:  {raw.authority or _('unattributed')}",
+            f"Transport:  {raw.get_transport_display()}{f' ({raw.topic})' if raw.topic else ''}",
+            f"Received:   {raw.received_at:%Y-%m-%d %H:%M:%S %Z}",
+            f"Checksum:   sha256 {raw.sha256}",
+        ]
+        if identity:
+            lines += [
+                f"Identifier: {identity['identifier']}",
+                f"Sender:     {identity['sender']}",
+                f"Sent:       {identity['sent']:%Y-%m-%d %H:%M:%S %Z}",
+            ]
+        findings = self.findings
+        lines += ["", f"Findings ({len(findings)}):"]
+        lines += [f"  {f['severity']}: [{f['check']}] {f['message']}" for f in findings] or [_("  none recorded")]
+        return "\n".join(lines)
 
 
 class SourceEvent(models.Model):

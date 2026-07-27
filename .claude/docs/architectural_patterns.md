@@ -58,8 +58,9 @@ Two pluggable registries let features be added without editing the caller:
 
 - **Validator registry** (`ingestion/validators.py:49`): semantic rules register
   via `@validator_registry.register("check-name")` and receive
-  `(tree, raw, report)`. A rule that raises is caught and downgraded to a warning
-  so one bad rule can't kill the pipeline (`validators.py:66`).
+  `(tree, raw, report)`. Every check — registered or directly invoked — runs
+  through `run_check()`, which records a crash as an `internal` error so one bad
+  rule costs that rule's findings and nothing else.
 - **Task-ferry job registry**: job types subclass `JobType`, are registered in the
   app's `ready()` (`ingestion/apps.py:9`), and expose progress via
   `progress.increment(...)` / `progress.create_child(...)`.
@@ -68,9 +69,60 @@ Two pluggable registries let features be added without editing the caller:
 
 Validation never raises to signal failure — it accumulates into a
 `ValidationReport` dataclass (`ingestion/validators.py:27`) with `errors` and
-`warnings`. **Errors → quarantine; warnings → stored with the alert.** The report
-serializes to JSON (`as_dict()`) into `QuarantinedMessage.report` and
-`Alert.validation_warnings`. Nothing is ever silently dropped.
+`warnings`. Validation is a **conformance record, not a publication gate**: the
+authority already published the alert, so a finding is recorded against the
+published alert unless it makes publishing impossible or dishonest.
+`report.blocking_findings()` draws that line — only errors from
+`categories.WITHHOLDING_CHECKS` keep a message back (no tree, no attribution, no
+readable `<sent>`, a signature that fails under a `require` policy, or an
+upstream re-issue); every other finding publishes as a defect, so **adding a
+check defaults to publishing it**. The report serializes to JSON (`as_dict()`)
+into `QuarantinedMessage.report`, and — for a message that publishes — into one
+`AlertDefect` row per finding. Nothing is ever silently dropped.
+
+Only a **well-formedness** failure stops the validation run; a schema-invalid
+tree still goes through signature, identity and every semantic rule, so one
+ingestion yields the complete defect list rather than the operator discovering
+the next fault after fixing this one.
+
+Because we have decided to publish before storing, **storing must not fail on
+content grounds** (`alerts/parser.py`): optional timestamps that cannot be read
+are stored null and over-length identity values are truncated, each recording a
+finding on the same report (the raw message keeps every original verbatim). Any
+remaining unexpected exception falls back to withheld with an `internal` finding
+and marks the raw message `failed` — transient `OperationalError`s are re-raised
+so the task's autoretry still owns them.
+
+Every finding's check name maps to one of seven categories through the single
+mapping in `ingestion/categories.py` (`schema` → `identity` → `signature` →
+`reissue` → `lineage` → `content` → `internal`, ordered most-upstream-first).
+**Adding a check means adding its mapping entry** — `test_check_categories`
+scans the source for check names and fails the suite on an unmapped one, so
+there is no `uncategorised` value. `internal` is for our own faults — a crashing
+validator is recorded under `CHECK_INTERNAL`, not under the rule's own name, so
+our bug is never reported to an NMHS as a defect in their CAP; it is an error
+rather than a warning (a warning would disguise our bug as a minor conformance
+defect of theirs) but never withholds. A withheld
+message denormalizes its most upstream category onto `primary_category` at
+creation (`QuarantinedMessage.save()`, or explicitly by `run_pipeline` from the
+*blocking* findings alone — a defect we would have published through must never
+read as why we refused), so admin list filtering is a SQL predicate rather than
+a JSON query.
+
+## Defect register: findings as immutable rows on the alert
+
+Findings on a *published* message are recorded as `AlertDefect` rows
+(`alerts/models.py`), written by `AlertDefect.record(alert, report.as_dict())`
+inside the same transaction as the store (`ingestion/tasks.py`). Rows are
+append-only — `save()` on an existing row raises, and `record()` bulk-creates —
+because a conformance record that can be rewritten is not evidence. They carry
+**no per-row status**: the follow-up conversation happens per authority and per
+category, not per finding. Because a defect hangs off an Alert it is implicitly
+per-authority, so findings group and count in SQL; `Alert.defect_count` is
+denormalized from the rows (counted from the register, never from `len(rows)`,
+so it cannot drift). The register and an inspect-only alert view live in the
+**Alerts** admin group (`alerts/wagtail_hooks.py`), both read-only via the shared
+`utils/admin.ReadOnlyPermissionPolicy`.
 
 ## Immutable-store-first, dedup, receipts
 

@@ -55,9 +55,10 @@ def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
     """
     from django.db import IntegrityError, transaction
 
-    from capaggregator.alerts.models import Alert
+    from capaggregator.alerts.models import Alert, AlertDefect
     from capaggregator.alerts.parser import parse_and_store, parse_identity
 
+    from . import categories
     from .models import DeliveryReceipt, QuarantinedMessage
     from .validators import run_validators
 
@@ -82,11 +83,12 @@ def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
     # --- Validate ---
     report = run_validators(raw)
 
-    if report.has_errors:
+    if report.blocking_findings():
         raw.state = "quarantined"
         raw.save()
-        QuarantinedMessage.objects.create(raw_message=raw, report=report.as_dict())
-        logger.warning("Message %s quarantined: %s", raw.sha256[:12], report.error_summary())
+        QuarantinedMessage.objects.create(raw_message=raw, report=report.as_dict(),
+                                          primary_category=report.blocking_category())
+        logger.warning("Message %s withheld: %s", raw.sha256[:12], report.blocking_summary())
         return {"state": "quarantined", "raw_id": raw.id}
 
     raw.state = "validated"
@@ -95,7 +97,13 @@ def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
     # --- Store (unique constraint on the triple is the concurrency backstop) ---
     try:
         with transaction.atomic():
-            alert = parse_and_store(raw, warnings=report.warnings)
+            # The parser records what it had to coerce to store the message
+            # (truncated identity values, unreadable optional timestamps) onto
+            # the same report, so those losses reach the register too.
+            alert = parse_and_store(raw, report)
+            # Same transaction as the store: an alert that exists always carries
+            # the findings it was published with.
+            AlertDefect.record(alert, report.as_dict())
     except IntegrityError:
         # Race: another transport stored the same triple between our check and now
         raw.state = "duplicate"
@@ -108,6 +116,21 @@ def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
         DeliveryReceipt.objects.create(authority=authority, transport=transport,
                                        alert=existing, raw_message=raw, was_first=False)
         return {"state": "duplicate", "raw_id": raw.id}
+    except OperationalError:
+        # Transient: the task's autoretry owns this, not the withheld register.
+        raise
+    except Exception as ex:
+        # We had decided to publish and storing failed anyway — our fault, not
+        # the publisher's, so the finding is `internal` and never reaches an
+        # NMHS as a defect in their CAP.
+        logger.exception("Storing message %s failed", raw.sha256[:12])
+        report.error(categories.CHECK_INTERNAL, f"storing the message failed: {ex}")
+        raw.state = "failed"
+        raw.error = str(ex)
+        raw.save()
+        QuarantinedMessage.objects.create(raw_message=raw, report=report.as_dict(),
+                                          primary_category=categories.INTERNAL)
+        return {"state": "failed", "raw_id": raw.id}
 
     raw.state = "stored"
     raw.sent_at = alert.sent

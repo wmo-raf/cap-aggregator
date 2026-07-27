@@ -1,5 +1,7 @@
 {% load i18n %}
-<section class="panel summary" id="capagg-health-panel" data-api-url="{{ api_url }}">
+<section class="panel summary" id="capagg-health-panel" data-api-url="{{ api_url }}"
+         data-defect-label-one="{% trans 'defect recorded' %}"
+         data-defect-label-other="{% trans 'defects recorded' %}">
     <h2>{% trans "Ingestion health (last 30 days)" %}</h2>
 
     <style>
@@ -52,11 +54,6 @@
             border-bottom: none;
         }
 
-        #capagg-health-panel .capagg-cells {
-            display: inline-flex;
-            gap: 1px;
-        }
-
         /* Trailing "opens in a new tab" marker on external links. */
         #capagg-health-panel .capagg-external-icon {
             width: .8em;
@@ -65,59 +62,11 @@
             vertical-align: -.05em;
         }
 
-        #capagg-health-panel .capagg-cell {
-            display: inline-block;
-            width: 8px;
-            height: 16px;
-            border-radius: 1px;
-            background: var(--w-color-grey-100);
-        }
-
-        #capagg-health-panel .capagg-cell.red {
-            background: var(--w-color-critical-200);
-        }
-
-        #capagg-health-panel .capagg-cell.orange {
-            background: var(--w-color-warning-100);
-        }
-
-        #capagg-health-panel .capagg-cell.green {
-            background: var(--w-color-positive-100);
-        }
-
-        #capagg-health-panel .capagg-cell.alive {
-            background: var(--w-color-positive-50, #a7d7b5);
-        }
-
-        #capagg-health-panel .capagg-cell.gray {
-            background: var(--w-color-grey-100);
-        }
-
-        #capagg-health-panel .capagg-legend {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: .25rem 1rem;
-            font-size: .8em;
-            color: var(--w-color-grey-400);
-            margin: .25rem 0 .75rem;
-        }
-
-        #capagg-health-panel .capagg-legend-item {
-            display: inline-flex;
-            align-items: center;
-            gap: .35rem;
-        }
     </style>
+    {% include "capagg_ingestion/_health_cells.html" %}
 
     <div class="capagg-body">
-        <div class="capagg-legend">
-            <span class="capagg-legend-item"><span class="capagg-cell red"></span> {% trans "Feed Error" %}</span>
-            <span class="capagg-legend-item"><span class="capagg-cell orange"></span> {% trans "Quarantine" %}</span>
-            <span class="capagg-legend-item"><span class="capagg-cell green"></span> {% trans "Alerts" %}</span>
-            <span class="capagg-legend-item"><span class="capagg-cell alive"></span> {% trans "Alive, Quiet" %}</span>
-            <span class="capagg-legend-item"><span class="capagg-cell gray"></span> {% trans "No Signal" %}</span>
-        </div>
+        {% include "capagg_ingestion/_health_cells_legend.html" %}
 
         <div class="capagg-banner" hidden></div>
         <div class="capagg-rows">
@@ -133,6 +82,10 @@
             const apiUrl = panel.dataset.apiUrl;
             const banner = panel.querySelector(".capagg-banner");
             const tbody = panel.querySelector("tbody");
+
+            function defectLabel(n) {
+                return n === 1 ? panel.dataset.defectLabelOne : panel.dataset.defectLabelOther;
+            }
 
             function paint(data) {
                 if (data.mqtt_consumer_connected === false) {
@@ -165,10 +118,13 @@
                     const cellsTd = document.createElement("td");
                     const cells = document.createElement("span");
                     cells.className = "capagg-cells";
+                    const defects = a.defects || [];
                     (a.statuses || []).forEach(function (status, i) {
                         const c = document.createElement("span");
-                        c.className = "capagg-cell " + status;
-                        c.title = data.days[i] + ": " + status;
+                        const n = defects[i] || 0;
+                        c.className = "capagg-cell " + status + (n ? " capagg-cell--defective" : "");
+                        c.title = data.days[i] + ": " + status
+                            + (n ? " — " + n + " " + defectLabel(n) : "");
                         cells.appendChild(c);
                     });
                     cellsTd.appendChild(cells);

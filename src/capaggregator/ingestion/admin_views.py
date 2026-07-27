@@ -2,8 +2,10 @@
 
 - Manual CAP backfill upload: stores an uploaded .xml/.zip under MEDIA_ROOT and
   starts the `cap_backfill` job.
-- Quarantine actions: re-run validation over pending messages (bulk), and dismiss
-  a single quarantined message.
+- Withheld-register actions: re-run validation over pending messages (bulk), and
+  dismiss a single withheld message.
+- The withheld inspect view: provenance, findings and the raw CAP, prepared here
+  because a finding's link target is a routing decision, not a model concern.
 """
 
 import uuid
@@ -13,13 +15,61 @@ from django.conf import settings
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_POST
 from task_ferry.handler import JobHandler
 from wagtail.admin.auth import require_admin_access
+from wagtail.snippets.views.snippets import InspectView
 
 from .forms import BackfillUploadForm
 from .models import QuarantinedMessage
+
+ALERT_INSPECT_URL_NAME = "wagtailsnippets_capagg_alerts_alert:inspect"
+RAW_MESSAGE_INSPECT_URL_NAME = "wagtailsnippets_capagg_ingestion_rawmessage:inspect"
+
+
+class WithheldInspectView(InspectView):
+    """Reading a withheld message: what arrived, what is wrong with it, and the
+    CAP itself — in that order, because the findings are what the operator came
+    for and a CAP document runs to hundreds of lines."""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        findings = [dict(f, link=self._link_for(f["context"])) for f in self.object.findings]
+        flagged = {f["context"]["line"] for f in findings if f["context"].get("line")}
+        context.update(
+            findings=findings,
+            flagged_lines=flagged,
+            # Collapsed by default; a finding that names a line is worth
+            # opening for, because the operator would otherwise have to count.
+            xml_expanded=bool(flagged),
+            xml_lines=list(enumerate(self.object.raw_message.xml.splitlines(), start=1)),
+            copy_report=self.object.copy_report(),
+        )
+        return context
+
+    def _link_for(self, finding_context: dict) -> str:
+        """Where a finding that references an alert takes the operator.
+
+        Into the admin, never out to the public site mid-investigation. An alert
+        resolved into a chain has an admin view worth reading; one that never
+        got that far is still mid-pipeline, so the raw message it came from is
+        the honest thing to show instead.
+        """
+        alert_id = finding_context.get("alert")
+        if not alert_id:
+            return ""
+        from capaggregator.alerts.models import Alert
+
+        alert = Alert.objects.filter(pk=alert_id).first()
+        if alert is None:
+            return ""
+        # The alert's chain as it stands now, not the chain the finding recorded
+        # at validation time — the operator is following this link today.
+        if alert.chain_id:
+            return reverse(ALERT_INSPECT_URL_NAME, args=[alert.pk])
+        return reverse(RAW_MESSAGE_INSPECT_URL_NAME, args=[alert.raw_message_id])
 
 
 @require_admin_access
@@ -45,8 +95,10 @@ def authority_monitor(request, pk):
     transport-event tables, and quarantine backlog."""
     from django.urls import reverse
 
+    from capaggregator.alerts.models import AlertDefect
     from capaggregator.sources.models import SourceAuthority
 
+    from . import categories
     from .models import RawMessage, SourceEvent
 
     authority = get_object_or_404(SourceAuthority, pk=pk)
@@ -72,8 +124,17 @@ def authority_monitor(request, pk):
         "authority": authority,
         "last_poll": last_poll,
         "quarantine_pending_count": QuarantinedMessage.objects.filter(
-            raw_message__authority=authority, status__in=["pending", "notified"]
+            raw_message__authority=authority, status="pending"
         ).count(),
+        # The other half of this source's data quality: what we published for
+        # them despite it being non-conformant. Unfiltered by the page's
+        # controls, like the withheld count beside it. `internal` findings are
+        # our own faults and never appear in authority-facing reporting.
+        "defect_count": (
+            AlertDefect.objects.filter(alert__authority=authority)
+            .exclude(category=categories.INTERNAL)
+            .count()
+        ),
         "recent_messages": messages_qs[:5],
         "recent_events": events_qs[:5],
         "health_api_url": reverse("capagg_ingestion_health_api") + f"?authority={authority.id}",
@@ -85,6 +146,10 @@ def authority_monitor(request, pk):
         "quarantine_all_url": (
             reverse("wagtailsnippets_capagg_ingestion_quarantinedmessage:list")
             + f"?raw_message__authority={authority.id}"
+        ),
+        "defects_all_url": (
+            reverse("wagtailsnippets_capagg_alerts_alertdefect:list")
+            + f"?alert__authority={authority.id}"
         ),
     }
     return render(request, "capagg_ingestion/authority_monitor.html", context)
@@ -126,7 +191,7 @@ def backfill_upload(request):
 @require_admin_access
 @require_POST
 def quarantine_revalidate(request):
-    """Start the bulk re-validation sweep over all pending/notified messages."""
+    """Start the bulk re-validation sweep over every pending message."""
     job = JobHandler.create_and_start(request.user, "quarantine_revalidation")
     messages.success(
         request, _("Re-validation started. Track progress at /api/jobs/%(id)s/.") % {"id": job.id}
@@ -138,7 +203,6 @@ def quarantine_revalidate(request):
 @require_POST
 def quarantine_dismiss(request, pk):
     message = get_object_or_404(QuarantinedMessage, pk=pk)
-    message.status = "dismissed"
-    message.save(update_fields=["status", "modified"])
-    messages.success(request, _("Quarantined message dismissed."))
+    QuarantinedMessage.objects.filter(pk=message.pk).dismiss()
+    messages.success(request, _("Withheld message dismissed."))
     return redirect("/admin/snippets/capagg_ingestion/quarantinedmessage/")

@@ -18,7 +18,7 @@ from capaggregator.alerts.models import Alert, ResolvedAlert
 from capaggregator.alerts.parser import content_fingerprint
 from capaggregator.ingestion.models import QuarantinedMessage
 from capaggregator.ingestion.tasks import ingest_raw_message
-from capaggregator.tests.cap_samples import cap_alert_xml
+from capaggregator.tests.cap_samples import NOT_WELL_FORMED_XML, cap_alert_xml
 from capaggregator.tests.factories import create_source_authority
 
 OID_PREFIX = "2.49.0.0.404.0"
@@ -50,8 +50,9 @@ class ReissueDetectionTests(TestCase):
         self.assertEqual(result["state"], "quarantined")
         self.assertEqual(ResolvedAlert.objects.count(), 1, "the re-issue must not become a second live alert")
 
-        report = QuarantinedMessage.objects.get().report
-        messages = [e["message"] for e in report["errors"] if e["check"] == "reissue"]
+        withheld = QuarantinedMessage.objects.get()
+        self.assertEqual(withheld.primary_category, "reissue")
+        messages = [e["message"] for e in withheld.report["errors"] if e["check"] == "reissue"]
         self.assertEqual(len(messages), 1)
         # The operator needs to see which alert it collided with, not just that it did
         self.assertIn("urn:oid:2.49.0.0.404.0.2026.7.21.7.53.0", messages[0])
@@ -125,4 +126,4 @@ class ContentFingerprintTests(TestCase):
         self.assertEqual(content_fingerprint(pretty), content_fingerprint(compact))
 
     def test_unparseable_xml_yields_no_fingerprint(self):
-        self.assertEqual(content_fingerprint("<alert>truncated"), "")
+        self.assertEqual(content_fingerprint(NOT_WELL_FORMED_XML), "")

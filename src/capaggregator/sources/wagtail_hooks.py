@@ -3,7 +3,7 @@
 Planned admin surface (docs/design.md §8):
 - Authority registry with an "issue MQTT credentials" action showing the
   one-time password + copy-paste cap-composer broker instructions
-- Quarantine inbox with validation reports + notify-authority action
+- Withheld register with validation reports + dismiss actions
 - Ingestion monitor (RawMessage states, latency)
 - Geocode registry with bulk import
 """
@@ -54,20 +54,21 @@ class LinkColumnWithIcon(Column):
             {
                 "icon_name": self.icon_name,
                 "link_attrs": {
-                    "href": instance.website_url,
+                    "href": context.get("raw_value", None),
                     "target": "_blank",
                     # target=_blank without this hands the opened site a
                     # window.opener handle back into the admin.
                     "rel": "noopener noreferrer",
-                    "title": _("%(name)s website (opens in a new tab)") % {"name": instance.name},
+                    # The column names what it links to, so the label reads
+                    # correctly on every column that uses this cell — a feed link
+                    # announced as a website is a lie to a screen reader.
+                    "title": _("%(name)s %(target)s (opens in a new tab)")
+                    % {"name": instance.name, "target": self.label.lower()},
                 },
             }
         )
 
         return context
-
-    def get_value(self, instance):
-        return instance.website_url
 
 
 class SourceAuthorityViewSet(SnippetViewSet):
@@ -79,7 +80,7 @@ class SourceAuthorityViewSet(SnippetViewSet):
         "country",
         "slug",
         LinkColumnWithIcon("website_url", label=_("Website"), icon_name="link-external"),
-        "feed_url",
+        LinkColumnWithIcon("feed_url", label=_("Feed URL"), icon_name="link-external"),
         "feed_type_detected",
         "has_mqtt_credentials",
         "active",

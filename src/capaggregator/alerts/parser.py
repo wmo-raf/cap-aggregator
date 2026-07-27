@@ -29,7 +29,10 @@ def parse_identity(xml: str) -> dict | None:
         return None
     sender = _text(tree, "sender")
     identifier = _text(tree, "identifier")
-    sent = _dt(_text(tree, "sent"))
+    try:
+        sent = _dt(_text(tree, "sent"))
+    except ValueError:
+        return None  # unreadable <sent>: validation withholds the message
     if not (sender and identifier and sent):
         return None
     return {"sender": sender, "identifier": identifier, "sent": sent}
@@ -89,8 +92,18 @@ def _canonical(el) -> list | None:
     return [name, (el.text or "").strip(), children]
 
 
-def parse_and_store(raw, warnings: list | None = None):
-    """Create the Alert graph from a RawMessage. Returns the Alert."""
+def parse_and_store(raw, report=None):
+    """Create the Alert graph from a RawMessage. Returns the Alert.
+
+    By the time this runs we have decided to publish, so storing must not fail
+    on content grounds: a value the column cannot hold is coerced and the loss
+    recorded as a finding on `report` (an optional ValidationReport) rather than
+    raised. The raw message keeps every original verbatim.
+
+    <sent> is the exception — a third of the identity triple, so an unreadable
+    one has already withheld the message (`sent-parseable`) and reaching here
+    with one is a bug, handled by the pipeline's internal-fault fallback.
+    """
     from .models import Alert, AlertArea, AlertInfo
 
     tree = etree.fromstring(raw.xml.encode())
@@ -98,8 +111,8 @@ def parse_and_store(raw, warnings: list | None = None):
     alert = Alert.objects.create(
         authority=raw.authority,
         raw_message=raw,
-        identifier=_text(tree, "identifier"),
-        sender=_text(tree, "sender"),
+        identifier=_bounded(_text(tree, "identifier"), Alert, "identifier", report),
+        sender=_bounded(_text(tree, "sender"), Alert, "sender", report),
         sent=_dt(_text(tree, "sent")),
         msg_type=_text(tree, "msgType"),
         status=_text(tree, "status"),
@@ -107,7 +120,6 @@ def parse_and_store(raw, warnings: list | None = None):
         references=_parse_references(_text(tree, "references")),
         note=_text(tree, "note"),
         content_fingerprint=content_fingerprint(raw.xml),
-        validation_warnings=warnings or [],
     )
 
     for info_el in tree.findall(f"{CAP}info"):
@@ -121,9 +133,9 @@ def parse_and_store(raw, warnings: list | None = None):
             severity=_text(info_el, "severity"),
             certainty=_text(info_el, "certainty"),
             audience=_text(info_el, "audience"),
-            onset=_dt(_text(info_el, "onset")),
-            effective=_dt(_text(info_el, "effective")),
-            expires=_dt(_text(info_el, "expires")),
+            onset=_lenient_dt(_text(info_el, "onset"), "onset", report),
+            effective=_lenient_dt(_text(info_el, "effective"), "effective", report),
+            expires=_lenient_dt(_text(info_el, "expires"), "expires", report),
             sender_name=_text(info_el, "senderName"),
             headline=_text(info_el, "headline"),
             description=_text(info_el, "description"),
@@ -161,6 +173,40 @@ def _dt(value: str) -> datetime | None:
     if not value:
         return None
     return datetime.fromisoformat(value)
+
+
+def _lenient_dt(value: str, field: str, report) -> datetime | None:
+    """`_dt` for the optional time fields: an unreadable value is stored as
+    null and recorded, never raised. A null expiry falls back to the resolver's
+    default active window, so the alert is served with a sane window instead of
+    being withheld over one malformed timestamp."""
+    try:
+        return _dt(value)
+    except ValueError:
+        _record(report, "datetime-format",
+                f"<{field}> value '{value}' cannot be read as a datetime — stored as empty")
+        return None
+
+
+def _bounded(value: str, model, field: str, report) -> str:
+    """Truncate to the column width, recording the loss.
+
+    Lossy, deliberately: the raw message keeps the original verbatim, and
+    widening the column to accommodate malformed input would reward the
+    malformation and change the shape of the identity constraint."""
+    limit = model._meta.get_field(field).max_length
+    if len(value) <= limit:
+        return value
+    _record(report, "field-length",
+            f"<{field}> is {len(value)} characters, longer than the {limit} we store — "
+            f"truncated (the raw message keeps the original)")
+    return value[:limit]
+
+
+def _record(report, check: str, message: str):
+    """Add a storage finding to the validation report, if one is being kept."""
+    if report is not None:
+        report.error(check, message)
 
 
 def _float(value: str) -> float | None:

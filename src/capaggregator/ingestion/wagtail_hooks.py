@@ -3,36 +3,25 @@ from wagtail import hooks
 from wagtail.admin.menu import MenuItem
 from wagtail.admin.ui.components import Component
 from wagtail.admin.ui.tables import Column
-from wagtail.permission_policies import ModelPermissionPolicy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
 
+from capaggregator.utils.admin import ReadOnlyPermissionPolicy, RelatedListingMixin
+
 from .admin_views import (
+    WithheldInspectView,
     authority_monitor,
     backfill_upload,
     health_dashboard_api,
     quarantine_dismiss,
     quarantine_revalidate,
 )
+from .bulk_actions import DismissBulkAction
+from .filters import WithheldFilterSet
 from .models import QuarantinedMessage, RawMessage, SourceEvent
 
 
-class ReadOnlyPermissionPolicy(ModelPermissionPolicy):
-    """Deny add/change/delete for everyone (even superusers) — the admin surface
-    is read-only. Raw messages are immutable; only list/inspect are allowed."""
-
-    def user_has_permission(self, user, action):
-        if action in {"add", "change", "delete"}:
-            return False
-        return super().user_has_permission(user, action)
-
-    def user_has_permission_for_instance(self, user, action, instance):
-        if action in {"add", "change", "delete"}:
-            return False
-        return super().user_has_permission_for_instance(user, action, instance)
-
-
-class RawMessageViewSet(SnippetViewSet):
+class RawMessageViewSet(RelatedListingMixin, SnippetViewSet):
     model = RawMessage
     icon = "download"
     menu_label = "Raw Messages"
@@ -47,25 +36,28 @@ class RawMessageViewSet(SnippetViewSet):
     ]
     list_filter = ["state", "transport", "authority"]
     inspect_view_enabled = True
-
-    def get_queryset(self, request):
-        # Prefetch so the `alert_title` column doesn't fire per-row queries.
-        qs = super().get_queryset(request)
-        if qs is None:
-            qs = self.model._default_manager.all()
-        return qs.prefetch_related("alerts__infos")
+    # The `alert_title` column walks into the alert's info blocks.
+    list_prefetch_related = ["alerts__infos"]
     permission_policy = ReadOnlyPermissionPolicy(RawMessage)
 
 
-class QuarantineViewSet(SnippetViewSet):
+class WithheldViewSet(RelatedListingMixin, SnippetViewSet):
     model = QuarantinedMessage
     icon = "warning"
-    menu_label = "Quarantine"
-    list_display = ["raw_message", "status", "created"]
-    list_filter = ["status", "raw_message__authority"]
+    menu_label = "Withheld"
+    list_display = ["raw_message", Column("category_label", label="Category"), "status", "created"]
+    # Declared as a filterset rather than `list_filter`, so bulk dismiss can
+    # answer "which rows is the operator looking at?" with the same code.
+    filterset_class = WithheldFilterSet
     inspect_view_enabled = True
-    inspect_view_fields = ["raw_message", "status", "report_summary", "created", "modified"]
+    # The template renders provenance, findings and the raw CAP itself, so the
+    # generic field table would only repeat it in a less legible order.
+    inspect_view_class = WithheldInspectView
     inspect_template_name = "capagg_ingestion/quarantine_inspect.html"
+    list_select_related = ["raw_message", "raw_message__authority"]
+    # Withheld messages are a record of decisions taken over immutable ingestion
+    # rows; dismissal is a separate action, not an edit.
+    permission_policy = ReadOnlyPermissionPolicy(QuarantinedMessage)
 
 
 class SourceEventViewSet(SnippetViewSet):
@@ -81,10 +73,12 @@ class SourceEventViewSet(SnippetViewSet):
 class IngestionGroup(SnippetViewSetGroup):
     menu_label = "Ingestion"
     menu_icon = "download"
-    items = [RawMessageViewSet, QuarantineViewSet, SourceEventViewSet]
+    items = [RawMessageViewSet, WithheldViewSet, SourceEventViewSet]
 
 
 register_snippet(IngestionGroup)
+
+hooks.register("register_bulk_action", DismissBulkAction)
 
 
 @hooks.register("register_admin_urls")
