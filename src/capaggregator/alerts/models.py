@@ -9,6 +9,10 @@ from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+# Pure vocabulary module (no models) — importing it here is not a cross-app
+# model dependency; findings are classified in exactly one place.
+from capaggregator.ingestion import categories
+
 MSG_TYPES = ("Alert", "Update", "Cancel", "Ack", "Error")
 STATUSES = ("Actual", "Exercise", "System", "Test", "Draft")
 URGENCIES = ("Immediate", "Expected", "Future", "Past", "Unknown")
@@ -44,7 +48,10 @@ class Alert(models.Model):
                     "alerts.parser.content_fingerprint. Detects an upstream re-issue of the "
                     "same alert under a fresh identity triple."))
     signature_valid = models.BooleanField(null=True, blank=True)
-    validation_warnings = models.JSONField(default=list, blank=True)
+    defect_count = models.PositiveIntegerField(
+        default=0, db_index=True,
+        help_text=_("Number of AlertDefect rows on this alert — denormalized so admin lists "
+                    "and filters never join the register"))
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -56,6 +63,78 @@ class Alert(models.Model):
 
     def __str__(self):
         return f"{self.identifier} ({self.msg_type}, {self.sent:%Y-%m-%d %H:%M})"
+
+
+class AlertDefect(models.Model):
+    """One validation finding, kept for as long as the alert it was found on.
+
+    The durable evidence trail behind the question that matters — *which
+    authorities publish non-conformant CAP, on what, and is it improving?*
+    Because a defect hangs off an Alert it is implicitly per-authority, so
+    findings group and count in SQL rather than in a JSON blob that the next
+    re-validation destroys.
+
+    Rows carry no status: the follow-up conversation happens per authority and
+    per category, not per finding, so giving each row its own state would mean
+    marking hundreds of them to record one email.
+    """
+
+    ERROR = "error"
+    WARNING = "warning"
+    SEVERITIES = ((ERROR, _("Error")), (WARNING, _("Warning")))
+
+    alert = models.ForeignKey(Alert, on_delete=models.CASCADE, related_name="defects")
+    category = models.CharField(max_length=20, choices=categories.CATEGORY_CHOICES, db_index=True)
+    check_name = models.CharField(max_length=50, help_text=_("Name of the check that produced the finding"))
+    message = models.TextField()
+    severity = models.CharField(max_length=10, choices=SEVERITIES, default=WARNING, db_index=True)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created", "-id"]
+        indexes = [
+            models.Index(fields=["category", "created"]),
+            models.Index(fields=["alert", "category"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.check_name}] {self.message[:60]}"
+
+    def save(self, *args, **kwargs):
+        # A conformance record that can be rewritten is not evidence. Rows are
+        # only ever created (see `record`, which bulk-creates); an update is a
+        # programming error, not a supported operation.
+        if not self._state.adding:
+            raise ValueError("AlertDefect rows are immutable")
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def record(cls, alert, report: dict) -> int:
+        """Write one row per finding in `report` and refresh the alert's count.
+
+        Takes the serialized report (`ValidationReport.as_dict()`) so warnings
+        and errors land in the same register — a conformance report then has one
+        source rather than two. Returns the alert's resulting defect count.
+        """
+        rows = [
+            cls(alert=alert,
+                category=categories.category_for_check(finding.get("check", "")),
+                check_name=finding.get("check", ""),
+                message=finding.get("message", ""),
+                severity=severity)
+            for severity, key in ((cls.ERROR, "errors"), (cls.WARNING, "warnings"))
+            for finding in (report.get(key) or [])
+        ]
+        if rows:
+            cls.objects.bulk_create(rows)
+
+        # Counted from the rows themselves rather than from len(rows), so the
+        # denormalized column can never drift from the register it summarizes.
+        count = alert.defects.count()
+        if count != alert.defect_count:
+            Alert.objects.filter(pk=alert.pk).update(defect_count=count)
+            alert.defect_count = count
+        return count
 
 
 class AlertInfo(models.Model):

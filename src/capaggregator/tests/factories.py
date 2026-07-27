@@ -105,6 +105,23 @@ def create_cap_alert(
     return alert
 
 
+def create_alert_defect(authority=None, alert=None, check_name="polygon-sanity", message="ring not closed",
+                        severity="warning"):
+    """An AlertDefect on its own alert, with the category the check maps to."""
+    from capaggregator.alerts.models import AlertDefect
+    from capaggregator.ingestion.categories import category_for_check
+
+    authority = authority or create_source_authority()
+    alert = alert or create_cap_alert(authority)
+    defect = AlertDefect.objects.create(
+        alert=alert, category=category_for_check(check_name), check_name=check_name,
+        message=message, severity=severity,
+    )
+    alert.defect_count = alert.defects.count()
+    alert.save(update_fields=["defect_count"])
+    return defect
+
+
 def create_event_chain(authority=None, alert=None, is_cancelled=False, resolved_kwargs=None, **alert_kwargs):
     """An EventChain + its ResolvedAlert read model, denormalized from the alert's
     first info block (mirroring what the lineage resolver produces)."""

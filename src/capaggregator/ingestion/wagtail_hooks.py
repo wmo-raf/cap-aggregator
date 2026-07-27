@@ -3,9 +3,10 @@ from wagtail import hooks
 from wagtail.admin.menu import MenuItem
 from wagtail.admin.ui.components import Component
 from wagtail.admin.ui.tables import Column
-from wagtail.permission_policies import ModelPermissionPolicy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
+
+from capaggregator.utils.admin import ReadOnlyPermissionPolicy
 
 from .admin_views import (
     authority_monitor,
@@ -15,21 +16,6 @@ from .admin_views import (
     quarantine_revalidate,
 )
 from .models import QuarantinedMessage, RawMessage, SourceEvent
-
-
-class ReadOnlyPermissionPolicy(ModelPermissionPolicy):
-    """Deny add/change/delete for everyone (even superusers) — the admin surface
-    is read-only. Raw messages are immutable; only list/inspect are allowed."""
-
-    def user_has_permission(self, user, action):
-        if action in {"add", "change", "delete"}:
-            return False
-        return super().user_has_permission(user, action)
-
-    def user_has_permission_for_instance(self, user, action, instance):
-        if action in {"add", "change", "delete"}:
-            return False
-        return super().user_has_permission_for_instance(user, action, instance)
 
 
 class RawMessageViewSet(SnippetViewSet):

@@ -131,8 +131,8 @@ class InternalFaultTests(TestCase):
 
         # Still published — a crash in our rules must not withhold an alert.
         self.assertEqual(result["state"], "stored")
-        warnings = Alert.objects.get(id=result["alert_id"]).validation_warnings
-        crashes = [w for w in warnings if "crashed" in w["message"]]
-        self.assertEqual([w["check"] for w in crashes], [categories.CHECK_INTERNAL])
-        self.assertEqual(categories.category_for_check(crashes[0]["check"]), categories.INTERNAL)
-        self.assertIn("polygon-sanity", crashes[0]["message"], "the crashing rule must still be named")
+        defects = Alert.objects.get(id=result["alert_id"]).defects.all()
+        crashes = [d for d in defects if "crashed" in d.message]
+        self.assertEqual([d.check_name for d in crashes], [categories.CHECK_INTERNAL])
+        self.assertEqual(crashes[0].category, categories.INTERNAL)
+        self.assertIn("polygon-sanity", crashes[0].message, "the crashing rule must still be named")

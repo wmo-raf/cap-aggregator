@@ -1,0 +1,61 @@
+{% extends "wagtailadmin/generic/inspect.html" %}
+{% load i18n %}
+
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        .capagg-defects {
+            padding-top: 1.5em;
+        }
+        .capagg-defects table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .capagg-defects th,
+        .capagg-defects td {
+            padding: 0.5em 1em 0.5em 0;
+            text-align: left;
+            vertical-align: top;
+            border-bottom: 1px solid var(--w-color-border-furniture);
+        }
+        .capagg-defects th {
+            color: var(--w-color-text-label);
+        }
+        .capagg-defect-empty {
+            color: var(--w-color-grey-400);
+        }
+    </style>
+{% endblock %}
+
+{% block main_content %}
+    {{ block.super }}
+    <div class="nice-padding capagg-defects">
+        <h2>{% trans "Defects" %}</h2>
+        {% if object.defects.all %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>{% trans "Recorded" %}</th>
+                        <th>{% trans "Category" %}</th>
+                        <th>{% trans "Check" %}</th>
+                        <th>{% trans "Severity" %}</th>
+                        <th>{% trans "Message" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for defect in object.defects.all %}
+                        <tr>
+                            <td>{{ defect.created }}</td>
+                            <td>{{ defect.get_category_display }}</td>
+                            <td>{{ defect.check_name }}</td>
+                            <td>{{ defect.get_severity_display }}</td>
+                            <td>{{ defect.message }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="capagg-defect-empty">{% trans "No defects recorded for this alert." %}</p>
+        {% endif %}
+    </div>
+{% endblock %}
