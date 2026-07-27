@@ -68,9 +68,10 @@ Two pluggable registries let features be added without editing the caller:
 
 Validation never raises to signal failure — it accumulates into a
 `ValidationReport` dataclass (`ingestion/validators.py:27`) with `errors` and
-`warnings`. **Errors → quarantine; warnings → stored with the alert.** The report
-serializes to JSON (`as_dict()`) into `QuarantinedMessage.report` and
-`Alert.validation_warnings`. Nothing is ever silently dropped.
+`warnings`. **Errors → quarantine; warnings → published with the alert.** The
+report serializes to JSON (`as_dict()`) into `QuarantinedMessage.report`, and —
+for a message that publishes — into one `AlertDefect` row per finding. Nothing is
+ever silently dropped.
 
 Every finding's check name maps to one of seven categories through the single
 mapping in `ingestion/categories.py` (`schema` → `identity` → `signature` →
@@ -84,6 +85,21 @@ message denormalizes
 its most upstream category onto `primary_category` at creation
 (`QuarantinedMessage.save()`), so admin list filtering is a SQL predicate rather
 than a JSON query.
+
+## Defect register: findings as immutable rows on the alert
+
+Findings on a *published* message are recorded as `AlertDefect` rows
+(`alerts/models.py`), written by `AlertDefect.record(alert, report.as_dict())`
+inside the same transaction as the store (`ingestion/tasks.py`). Rows are
+append-only — `save()` on an existing row raises, and `record()` bulk-creates —
+because a conformance record that can be rewritten is not evidence. They carry
+**no per-row status**: the follow-up conversation happens per authority and per
+category, not per finding. Because a defect hangs off an Alert it is implicitly
+per-authority, so findings group and count in SQL; `Alert.defect_count` is
+denormalized from the rows (counted from the register, never from `len(rows)`,
+so it cannot drift). The register and an inspect-only alert view live in the
+**Alerts** admin group (`alerts/wagtail_hooks.py`), both read-only via the shared
+`utils/admin.ReadOnlyPermissionPolicy`.
 
 ## Immutable-store-first, dedup, receipts
 

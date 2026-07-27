@@ -3,9 +3,10 @@ from wagtail import hooks
 from wagtail.admin.menu import MenuItem
 from wagtail.admin.ui.components import Component
 from wagtail.admin.ui.tables import Column
-from wagtail.permission_policies import ModelPermissionPolicy
 from wagtail.snippets.models import register_snippet
 from wagtail.snippets.views.snippets import SnippetViewSet, SnippetViewSetGroup
+
+from capaggregator.utils.admin import ReadOnlyPermissionPolicy, RelatedListingMixin
 
 from .admin_views import (
     authority_monitor,
@@ -17,22 +18,7 @@ from .admin_views import (
 from .models import QuarantinedMessage, RawMessage, SourceEvent
 
 
-class ReadOnlyPermissionPolicy(ModelPermissionPolicy):
-    """Deny add/change/delete for everyone (even superusers) — the admin surface
-    is read-only. Raw messages are immutable; only list/inspect are allowed."""
-
-    def user_has_permission(self, user, action):
-        if action in {"add", "change", "delete"}:
-            return False
-        return super().user_has_permission(user, action)
-
-    def user_has_permission_for_instance(self, user, action, instance):
-        if action in {"add", "change", "delete"}:
-            return False
-        return super().user_has_permission_for_instance(user, action, instance)
-
-
-class RawMessageViewSet(SnippetViewSet):
+class RawMessageViewSet(RelatedListingMixin, SnippetViewSet):
     model = RawMessage
     icon = "download"
     menu_label = "Raw Messages"
@@ -47,13 +33,8 @@ class RawMessageViewSet(SnippetViewSet):
     ]
     list_filter = ["state", "transport", "authority"]
     inspect_view_enabled = True
-
-    def get_queryset(self, request):
-        # Prefetch so the `alert_title` column doesn't fire per-row queries.
-        qs = super().get_queryset(request)
-        if qs is None:
-            qs = self.model._default_manager.all()
-        return qs.prefetch_related("alerts__infos")
+    # The `alert_title` column walks into the alert's info blocks.
+    list_prefetch_related = ["alerts__infos"]
     permission_policy = ReadOnlyPermissionPolicy(RawMessage)
 
 

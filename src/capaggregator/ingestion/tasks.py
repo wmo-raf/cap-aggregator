@@ -55,7 +55,7 @@ def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
     """
     from django.db import IntegrityError, transaction
 
-    from capaggregator.alerts.models import Alert
+    from capaggregator.alerts.models import Alert, AlertDefect
     from capaggregator.alerts.parser import parse_and_store, parse_identity
 
     from .models import DeliveryReceipt, QuarantinedMessage
@@ -95,7 +95,10 @@ def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
     # --- Store (unique constraint on the triple is the concurrency backstop) ---
     try:
         with transaction.atomic():
-            alert = parse_and_store(raw, warnings=report.warnings)
+            alert = parse_and_store(raw)
+            # Same transaction as the store: an alert that exists always carries
+            # the findings it was published with.
+            AlertDefect.record(alert, report.as_dict())
     except IntegrityError:
         # Race: another transport stored the same triple between our check and now
         raw.state = "duplicate"

@@ -89,7 +89,7 @@ def _canonical(el) -> list | None:
     return [name, (el.text or "").strip(), children]
 
 
-def parse_and_store(raw, warnings: list | None = None):
+def parse_and_store(raw):
     """Create the Alert graph from a RawMessage. Returns the Alert."""
     from .models import Alert, AlertArea, AlertInfo
 
@@ -107,7 +107,6 @@ def parse_and_store(raw, warnings: list | None = None):
         references=_parse_references(_text(tree, "references")),
         note=_text(tree, "note"),
         content_fingerprint=content_fingerprint(raw.xml),
-        validation_warnings=warnings or [],
     )
 
     for info_el in tree.findall(f"{CAP}info"):
