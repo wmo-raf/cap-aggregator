@@ -1,0 +1,70 @@
+{# The day-cell visual vocabulary, shared by the homepage health panel and the
+   per-authority monitor's activity strip. One definition: a colour that means
+   one thing on the dashboard and another on the drill-down would be worse than
+   no colour at all. Unscoped on purpose — the `capagg-` prefix is the scope.
+
+   Rendered inside the panels themselves (the homepage panel is a Component with
+   no `extra_css` block to reach), so both pages include it the same way. #}
+<style>
+    .capagg-cells {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 1px;
+    }
+
+    .capagg-cell {
+        position: relative;
+        display: inline-block;
+        width: 8px;
+        height: 16px;
+        border-radius: 1px;
+        background: var(--w-color-grey-100);
+    }
+
+    /* Conformance is an independent axis, so it gets its own channel: a
+       corner notch over the delivery colour, which keeps its own meaning. */
+    .capagg-cell--defective::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        inset-inline-end: 0;
+        border-block-start: 5px solid var(--w-color-text-label);
+        border-inline-start: 5px solid transparent;
+    }
+
+    .capagg-cell.red {
+        background: var(--w-color-critical-200);
+    }
+
+    .capagg-cell.orange {
+        background: var(--w-color-warning-100);
+    }
+
+    .capagg-cell.green {
+        background: var(--w-color-positive-100);
+    }
+
+    .capagg-cell.alive {
+        background: var(--w-color-positive-50, #a7d7b5);
+    }
+
+    .capagg-cell.gray {
+        background: var(--w-color-grey-100);
+    }
+
+    .capagg-legend {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .25rem 1rem;
+        font-size: .8em;
+        color: var(--w-color-grey-400);
+        margin: .25rem 0 .75rem;
+    }
+
+    .capagg-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+    }
+</style>

@@ -130,6 +130,26 @@
             font-weight: 600;
             color: var(--w-color-text-label);
         }
+
+        /* Oldest day on the left, as on the dashboard; the dates below the row
+           anchor a strip that is otherwise 30 anonymous squares. */
+        .capagg-strip-scale {
+            display: flex;
+            justify-content: space-between;
+            margin-top: .35rem;
+            font-size: .8rem;
+            color: var(--w-color-grey-400);
+        }
+
+        .capagg-strip-error,
+        .capagg-strip-empty {
+            font-size: .9rem;
+            color: var(--w-color-grey-400);
+        }
+
+        .capagg-strip-error {
+            color: var(--w-color-critical-200);
+        }
     </style>
 {% endblock %}
 
@@ -211,7 +231,36 @@
             <section class="capagg-panel">
                 <h2 class="capagg-panel__header">{% trans "Activity (last 30 days)" %}</h2>
                 <div class="capagg-panel__body">
-                    <div id="activity-strip" data-api-url="{{ health_api_url }}"></div>
+                    {% include "capagg_ingestion/_health_cells.html" %}
+                    {# Tooltip wording rides on data- attributes rather than being
+                       interpolated into the script: Django escapes attribute
+                       values, so a translation holding a quote or a backslash
+                       cannot break the JS. #}
+                    <div id="activity-strip"
+                         data-api-url="{{ health_api_url }}"
+                         data-label-stored="{% trans 'stored' %}"
+                         data-label-duplicate="{% trans 'duplicate' %}"
+                         data-label-quarantined="{% trans 'withheld' %}"
+                         data-label-polls-ok="{% trans 'polls OK' %}"
+                         data-label-polls-failed="{% trans 'polls failed' %}"
+                         data-label-defect-one="{% trans 'defect recorded' %}"
+                         data-label-defect-other="{% trans 'defects recorded' %}"
+                         data-label-nothing="{% trans 'no activity' %}">
+                        {% include "capagg_ingestion/_health_cells_legend.html" %}
+                        <span class="capagg-cells"></span>
+                        <div class="capagg-strip-scale" hidden>
+                            <span class="capagg-strip-from"></span>
+                            <span class="capagg-strip-to"></span>
+                        </div>
+                        {# This page is landed on once and never re-polls, so a
+                           silent failure would read as "no activity". #}
+                        <div class="capagg-strip-error" hidden>
+                            {% trans "Could not load activity for this authority." %}
+                        </div>
+                        <div class="capagg-strip-empty" hidden>
+                            {% trans "No activity recorded in this window." %}
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -343,4 +392,78 @@
 
         </div>
     </div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const strip = document.getElementById("activity-strip");
+            const cells = strip.querySelector(".capagg-cells");
+            const scale = strip.querySelector(".capagg-strip-scale");
+            const errorBox = strip.querySelector(".capagg-strip-error");
+            const emptyBox = strip.querySelector(".capagg-strip-empty");
+            const labels = strip.dataset;
+
+            // Same order the endpoint counts them in, so the tooltip reads the
+            // way the pipeline runs: what arrived, then how it was fetched.
+            const COUNT_LABELS = [
+                ["stored", labels.labelStored],
+                ["duplicate", labels.labelDuplicate],
+                ["quarantined", labels.labelQuarantined],
+                ["polls_ok", labels.labelPollsOk],
+                ["polls_failed", labels.labelPollsFailed],
+            ];
+
+            function tooltip(day, status, counts, defectCount) {
+                const parts = COUNT_LABELS
+                    .filter(function (pair) { return (counts || {})[pair[0]]; })
+                    .map(function (pair) { return counts[pair[0]] + " " + pair[1]; });
+                if (!parts.length) {
+                    parts.push(labels.labelNothing);
+                }
+                if (defectCount) {
+                    const word = defectCount === 1 ? labels.labelDefectOne : labels.labelDefectOther;
+                    parts.push(defectCount + " " + word);
+                }
+                return day + " — " + status + " — " + parts.join(", ");
+            }
+
+            function paint(data) {
+                // Single-authority mode, so the one row is this authority's.
+                const row = (data.authorities || [])[0];
+                const days = data.days || [];
+                if (!row) {
+                    emptyBox.hidden = false;
+                    return;
+                }
+                const counts = row.counts || [];
+                const defects = row.defects || [];
+                (row.statuses || []).forEach(function (status, i) {
+                    const cell = document.createElement("span");
+                    const defectCount = defects[i] || 0;
+                    cell.className = "capagg-cell " + status + (defectCount ? " capagg-cell--defective" : "");
+                    cell.title = tooltip(days[i], status, counts[i], defectCount);
+                    cells.appendChild(cell);
+                });
+                if (days.length) {
+                    scale.querySelector(".capagg-strip-from").textContent = days[0];
+                    scale.querySelector(".capagg-strip-to").textContent = days[days.length - 1];
+                    scale.hidden = false;
+                }
+            }
+
+            fetch(strip.dataset.apiUrl, {headers: {"Accept": "application/json"}})
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error(response.status);
+                    }
+                    return response.json();
+                })
+                .then(paint)
+                .catch(function () {
+                    errorBox.hidden = false;
+                });
+        });
+    </script>
 {% endblock %}
