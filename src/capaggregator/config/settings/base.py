@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "capaggregator.tiles",
     "capaggregator.api",
     "capaggregator.home",
+    "capaggregator.utils",
     # Wagtail
     "wagtail.contrib.forms",
     "wagtail.contrib.redirects",

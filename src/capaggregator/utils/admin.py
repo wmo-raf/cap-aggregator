@@ -47,11 +47,11 @@ def is_read_only_register(model):
     return isinstance(getattr(viewset, "permission_policy", None), ReadOnlyPermissionPolicy)
 
 
-class _WritableSnippetModels:
-    """The catch-all model list a generic snippet bulk action claims, minus the
-    read-only registers. Kept lazy — like the classproperty it replaces — because
-    the snippet registry is only complete once every `wagtail_hooks` has been
-    imported."""
+class _WritableSnippetModelsProperty:
+    """Descriptor standing in for the `models` classproperty a generic snippet
+    bulk action inherits: the same catch-all list, minus the read-only registers.
+    Computed on each access, as the classproperty is, because the snippet
+    registry is only complete once every `wagtail_hooks` has been imported."""
 
     def __get__(self, instance, cls=None):
         return [model for model in get_snippet_models() if not is_read_only_register(model)]
@@ -70,11 +70,9 @@ def restrict_generic_bulk_actions_to_writable_registers():
     to reach (the dispatcher 404s on an unregistered action).
 
     Scoped to the catch-all: an action that names its models explicitly — our
-    Dismiss — has opted a register in deliberately and is left alone."""
-    SnippetBulkAction.models = _WritableSnippetModels()
+    Dismiss — has opted a register in deliberately and is left alone.
 
-
-# Installed on import, which any read-only register triggers by importing the
-# policy above. The descriptor is inert until the bulk-action registry does its
-# one-time scan on the first admin listing, so import order does not matter.
-restrict_generic_bulk_actions_to_writable_registers()
+    Called from `utils/apps.py` `ready()`. The descriptor is inert until the
+    bulk-action registry does its one-time scan on the first admin listing, so
+    it is in place well before anything reads it."""
+    SnippetBulkAction.models = _WritableSnippetModelsProperty()
