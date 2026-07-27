@@ -23,12 +23,22 @@ def cap_alert_xml(
     expires="2026-07-08T12:00:00+00:00",
     audience="",
     web="",
+    polygon="-1.30,36.80 -1.30,36.90 -1.20,36.90 -1.20,36.80 -1.30,36.80",
+    area=True,
 ) -> str:
     """A schema-valid CAP 1.2 alert. Element order follows the CAP 1.2 sequence
     (note before references; effective before expires; audience before effective;
     web after instruction) so it passes XSD.
-    `expires=None` omits the optional <expires> element (CAP allows that)."""
+    `expires=None` omits the optional <expires> element (CAP allows that);
+    `area=False` omits the whole <area> block, and `polygon` varies the shape —
+    both are schema-valid, so they exercise the semantic rules rather than XSD."""
     references_el = f"    <references>{references}</references>\n" if references else ""
+    area_el = (
+        "        <area>\n"
+        "            <areaDesc>Nairobi</areaDesc>\n"
+        f"            <polygon>{polygon}</polygon>\n"
+        "        </area>\n"
+    ) if area else ""
     expires_el = f"        <expires>{expires}</expires>\n" if expires else ""
     audience_el = f"        <audience>{audience}</audience>\n" if audience else ""
     web_el = f"        <web>{web}</web>\n" if web else ""
@@ -54,10 +64,7 @@ def cap_alert_xml(
         f"        <headline>{headline}</headline>\n"
         f"        <description>{description}</description>\n"
         f"{web_el}"
-        "        <area>\n"
-        "            <areaDesc>Nairobi</areaDesc>\n"
-        "            <polygon>-1.30,36.80 -1.30,36.90 -1.20,36.90 -1.20,36.80 -1.30,36.80</polygon>\n"
-        "        </area>\n"
+        f"{area_el}"
         "    </info>\n"
         "</alert>\n"
     )

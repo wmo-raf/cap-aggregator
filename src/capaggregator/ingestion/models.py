@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from . import categories
+
 
 class RawMessage(models.Model):
     """Every received CAP message, stored immutably before any processing.
@@ -133,6 +135,11 @@ class QuarantinedMessage(models.Model):
 
     raw_message = models.OneToOneField(RawMessage, on_delete=models.CASCADE, related_name="quarantine")
     report = models.JSONField(default=dict, help_text=_("Per-check validation results"))
+    primary_category = models.CharField(
+        max_length=20, choices=categories.CATEGORY_CHOICES, blank=True, db_index=True,
+        help_text=_("Most upstream category among this message's findings — denormalized from the "
+                    "report at creation so the list filters with a SQL predicate"),
+    )
     status = models.CharField(max_length=20, choices=STATUSES, default="pending")
     created = models.DateTimeField(auto_now_add=True)
     modified = models.DateTimeField(auto_now=True)
@@ -142,6 +149,20 @@ class QuarantinedMessage(models.Model):
 
     def __str__(self):
         return f"Quarantine #{self.pk} [{self.status}]"
+
+    def save(self, *args, **kwargs):
+        # Derived once, at creation, from the report the row is created with —
+        # so no caller can forget it, and a later status change (dismissal)
+        # never rewrites the category of a message we already classified.
+        if self._state.adding and not self.primary_category:
+            self.primary_category = categories.classify_report(self.report)
+        super().save(*args, **kwargs)
+
+    @property
+    def category_label(self) -> str:
+        """Category for the list column — blank rows (created before this field
+        existed) read as an em dash until a re-validation sweep re-creates them."""
+        return self.get_primary_category_display() or "—"
 
     @property
     def report_summary(self) -> str:

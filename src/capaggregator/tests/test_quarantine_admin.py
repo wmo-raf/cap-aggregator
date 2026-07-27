@@ -47,6 +47,32 @@ class QuarantineInboxTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
+    def test_inbox_list_shows_the_category_column(self):
+        create_quarantined_message(
+            authority=self.authority,
+            report={"errors": [{"check": "reissue", "message": "duplicate content"}], "warnings": []},
+        )
+
+        response = self.client.get(reverse(self.LIST_URL_NAME))
+
+        self.assertContains(response, "Category")
+        self.assertContains(response, "Re-issue")
+
+    def test_inbox_list_filters_by_category(self):
+        create_quarantined_message(
+            authority=self.authority,
+            report={"errors": [{"check": "reissue", "message": "duplicate content"}], "warnings": []},
+        )
+        create_quarantined_message(
+            authority=self.authority,
+            report={"errors": [{"check": "sender", "message": "SENDER-PROBLEM"}], "warnings": []},
+        )
+
+        response = self.client.get(reverse(self.LIST_URL_NAME), {"primary_category": "identity"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([m.primary_category for m in response.context["object_list"]], ["identity"])
+
     def test_detail_view_renders_the_validation_report(self):
         report = {"errors": [{"check": "sender", "message": "DISTINCTIVE-REASON"}], "warnings": []}
         message = create_quarantined_message(authority=self.authority, report=report)
