@@ -45,6 +45,16 @@ TRANSIENT_RETRY = dict(
 # Concurrent CAP XML fetches per poll — bounds our politeness toward one source
 CAP_FETCH_POOL_SIZE = 10
 
+# Poll tasks (ignore_result=True) never store a Celery result. Nothing reads one (outcomes are
+# recorded as SourceEvent rows), and storing it is a DB write in Celery's own
+# failure handler: if the DB drops mid-poll, that write raises too, which kills
+# the gevent greenlet without completing the request — the message stays
+# unacked forever and, once every prefetch slot is held this way, the polling
+# worker silently stops consuming (prod, 2026-11-08). With ignore_result a DB
+# outage can only fail the task itself. The hard time_limit (per task, below)
+# guards against genuinely stalled I/O; soft limits are not enforced by the
+# gevent pool, so only the hard limit is set.
+
 
 def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
     """Identity-dedup → validate → quarantine | parse & store → receipt →
@@ -238,7 +248,16 @@ def purge_old_source_events(self):
         logger.info("Purged %s SourceEvent rows older than 90 days", deleted)
 
 
-@shared_task(base=Singleton, lock_expiry=120, bind=True, acks_late=True)
+@shared_task(bind=True, acks_late=True, ignore_result=True)
+def check_polling_freshness(self):
+    """Every 5 min: email ADMINS when feed polling goes stale, a daily reminder
+    while it stays stale, and once on recovery (logic in ingestion/alerting.py)."""
+    from .alerting import check_polling_freshness as check
+
+    return check()
+
+
+@shared_task(base=Singleton, lock_expiry=120, bind=True, acks_late=True, ignore_result=True, time_limit=60)
 def poll_all_feeds(self):
     """Celery-beat entry point: fan out one poll_feed per authority that is due.
 
@@ -288,7 +307,8 @@ def poll_all_feeds(self):
             poll_feed.delay(authority.id)
 
 
-@shared_task(base=Singleton, lock_expiry=300, bind=True, acks_late=True, max_retries=0)
+@shared_task(base=Singleton, lock_expiry=300, bind=True, acks_late=True, max_retries=0,
+             ignore_result=True, time_limit=90)
 def poll_feed(self, authority_id: int):
     """Poll one authority's CAP feed (mandatory baseline transport).
 

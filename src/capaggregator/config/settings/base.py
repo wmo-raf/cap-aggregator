@@ -268,6 +268,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "capaggregator.ingestion.tasks.sweep_unprocessed",
         "schedule": 300,
     },
+    "check-polling-freshness": {
+        "task": "capaggregator.ingestion.tasks.check_polling_freshness",
+        "schedule": 300,
+    },
     "purge-old-source-events": {
         "task": "capaggregator.ingestion.tasks.purge_old_source_events",
         "schedule": 86400,
@@ -281,6 +285,42 @@ TASK_FERRY = {
     "PROGRESS_CACHE_TIMEOUT": 7200,  # 2 hours
     "JOB_EXPIRY_DAYS": 14,
 }
+
+# --- Email (operator alerts + Django's 500-error mails to ADMINS) ---
+# No EMAIL_HOST → console backend, so an unconfigured deployment logs mail
+# instead of failing to send it.
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)  # STARTTLS, port 587
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)  # implicit TLS, port 465
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=30)
+# `or`, not default=: docker-compose passes unset variables through as ""
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="") or EMAIL_HOST_USER or "webmaster@localhost"
+SERVER_EMAIL = env("SERVER_EMAIL", default="") or DEFAULT_FROM_EMAIL
+EMAIL_SUBJECT_PREFIX = env("EMAIL_SUBJECT_PREFIX", default="[CAP Aggregator] ")
+
+
+def parse_admins(value: str) -> list[tuple[str, str]]:
+    """'Name:email,Other:other@x' → [(name, email), ...]; a bare email names itself."""
+    admins = []
+    for item in value.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        name, sep, email = item.rpartition(":")
+        admins.append((name.strip() if sep else email.strip(), email.strip()))
+    return admins
+
+
+# Receives the polling-freshness alerts and Django's unhandled-500 reports
+ADMINS = parse_admins(env("ADMINS", default=""))
 
 # --- MQTT (aggregator's own broker) ---
 MQTT_HOST = env("MQTT_HOST", default="capagg-mosquitto")

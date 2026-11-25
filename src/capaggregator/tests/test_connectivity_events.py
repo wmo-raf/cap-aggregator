@@ -84,3 +84,29 @@ class MqttConnectivityTests(TestCase):
 
         on_connect(Mock(), None, None, 0)
         self.assertTrue(mqtt_consumer_connected())
+
+    def test_repeated_connect_failures_record_one_event(self):
+        """paho retries every few seconds to a minute; an outage must not write a
+        row per attempt (prod logged 2 rows/min for 3 months)."""
+        from capaggregator.ingestion.management.commands.mqtt_consumer import on_connect, on_disconnect
+
+        for _ in range(5):
+            on_connect(Mock(), None, None, 5)
+            on_disconnect(Mock(), None)
+
+        event = SourceEvent.objects.get()
+        self.assertFalse(event.ok)
+        self.assertIn("connect failed", event.error)
+
+    def test_recovery_and_repeat_outage_are_each_recorded(self):
+        from capaggregator.ingestion.management.commands.mqtt_consumer import on_connect, on_disconnect
+
+        on_connect(Mock(), None, None, 5)
+        on_connect(Mock(), None, None, 0)
+        on_connect(Mock(), None, None, 0)  # reconnect while already connected: no new row
+        on_disconnect(Mock(), None)
+
+        self.assertEqual(
+            list(SourceEvent.objects.order_by("occurred_at", "id").values_list("ok", flat=True)),
+            [False, True, False],
+        )
