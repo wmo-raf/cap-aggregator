@@ -44,7 +44,7 @@ STATE_CACHE_KEY = "capagg-polling-freshness"
 BACKLOG_CACHE_KEY = "capagg-ingestion-backlog"
 REMINDER_INTERVAL = timedelta(hours=24)
 
-# Unprocessed this long = stalled. Ingest autoretry gives up within a minute and
+# Unprocessed this long = stalled. Ingest autoretry gives up within ~3 min and
 # sweep_unprocessed re-enqueues unfinished work every 5 min, so work still
 # unfinished after 15 min has been through at least two sweeps and nobody is
 # consuming it (or it fails every attempt).

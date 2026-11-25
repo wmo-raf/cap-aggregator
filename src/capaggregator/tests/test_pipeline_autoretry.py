@@ -31,6 +31,33 @@ class TransientBlip:
         return self.real(*args, **kwargs)
 
 
+class DatabaseOutage:
+    """A DB that is down for the first `seconds` of a simulated clock. The clock
+    only moves when the task schedules a retry (by that retry's countdown), so
+    the test measures the wait the retry policy actually buys, not wall time."""
+
+    def __init__(self, real, seconds):
+        self.real = real
+        self.seconds = seconds
+        self.clock = 0
+        self.countdowns = []
+
+    def __call__(self, *args, **kwargs):
+        if self.clock < self.seconds:
+            raise OperationalError("the database system is in recovery mode")
+        return self.real(*args, **kwargs)
+
+    def wait_for_retry(self, task):
+        real_retry = task.retry
+
+        def retry(*args, countdown=None, **kwargs):
+            self.countdowns.append(countdown)
+            self.clock += countdown or 0
+            return real_retry(*args, countdown=countdown, **kwargs)
+
+        return patch.object(task, "retry", side_effect=retry)
+
+
 class IngestAutoretryTests(TestCase):
     def setUp(self):
         self.authority = create_source_authority(name="Kenya Met")
@@ -93,6 +120,25 @@ class IngestAutoretryTests(TestCase):
         self.assertEqual(Alert.objects.count(), 1)
         self.assertEqual(DeliveryReceipt.objects.filter(was_first=True).count(), 1)
         self.assertEqual(DeliveryReceipt.objects.filter(was_first=False).count(), 0)
+
+    @patch("capaggregator.alerts.tasks.resolve_lineage")
+    @patch("random.randrange", return_value=0)  # unluckiest jitter: fails the test if jitter is ever re-enabled
+    def test_message_survives_a_two_minute_outage_before_its_row_is_written(self, _randrange, _resolve_lineage):
+        # #141: until the RawMessage row is written the XML lives only in the
+        # task message, and the sweep only sees rows — exhausting retries during
+        # a DB restart (~15–20s) loses an MQTT/webhook delivery for good. The
+        # retry window must outlast that reliably, with wide margin.
+        manager = RawMessage.objects
+        outage = DatabaseOutage(manager.get_or_create, seconds=120)
+
+        with patch.object(manager, "get_or_create", side_effect=outage), outage.wait_for_retry(ingest_raw_message):
+            result = ingest_raw_message.apply(
+                kwargs=dict(transport="mqtt", xml=cap_alert_xml(), authority_id=self.authority.id)
+            )
+
+        self.assertTrue(result.successful(), f"gave up after waiting {outage.clock}s: {outage.countdowns}")
+        self.assertEqual(result.result["state"], "stored")
+        self.assertEqual(RawMessage.objects.get().state, "stored")
 
 
 class LineageAutoretryTests(TestCase):

@@ -1,7 +1,7 @@
 """Ingestion Celery tasks. Conventions: bind=True, acks_late=True, late imports
 inside task bodies (exception: names the decorators need, e.g. autoretry
 exception classes). Pipeline tasks autoretry TRANSIENT errors (database
-operational errors) with short jittered backoff — safe because ingestion is
+operational errors) with a ~3 min un-jittered backoff — safe because ingestion is
 idempotent: re-execution of the same bytes RESUMES a mid-flight RawMessage and
 dedup short-circuits completed ones. Validation/parse failures never retry.
 The sweep_unprocessed periodic task remains the backstop for exhausted retries
@@ -32,14 +32,23 @@ from django.db import OperationalError
 
 logger = logging.getLogger(__name__)
 
-# Transient-error autoretry for pipeline tasks: ~3 quick attempts (jittered
-# 5–60s backoff) so a momentary DB/network blip costs seconds, not a sweep cycle
+# Transient-error autoretry for pipeline tasks: waits of 5, 10, 20, 40, 60, 60s
+# (195s in all) — a blip costs 5s, not a sweep cycle, and the window reliably
+# outlasts a Postgres crash restart (~15–20s). It must be RELIABLE, not just
+# long on average: until ingest_raw_message writes its RawMessage row the XML
+# lives only in the task message, so exhausted retries lose an MQTT/webhook
+# delivery for good — the sweep only sees rows (#141). Hence no jitter: Celery's
+# is full jitter (each wait uniform in [0, ceiling]), which can spend the whole
+# budget in a few seconds. Tasks failing in the same outage retrying together
+# is harmless at our volume. An outage longer than 195s can still lose such a
+# message; closing that fully means persisting bytes before enqueueing (#141
+# option 2).
 TRANSIENT_RETRY = dict(
     autoretry_for=(OperationalError,),
-    max_retries=3,
+    max_retries=6,
     retry_backoff=5,
     retry_backoff_max=60,
-    retry_jitter=True,
+    retry_jitter=False,
 )
 
 # Concurrent CAP XML fetches per poll — bounds our politeness toward one source
