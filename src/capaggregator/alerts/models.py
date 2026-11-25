@@ -26,6 +26,10 @@ def _choices(values):
 class Alert(models.Model):
     """One CAP <alert> message, stored immutably. Identity = (sender, identifier, sent)."""
 
+    # Registering the snippet viewset would index every row's FKs in Wagtail's
+    # reference index — 2 GB in prod for a usage view nobody needs (#137).
+    wagtail_reference_index_ignore = True
+
     authority = models.ForeignKey("capagg_sources.SourceAuthority", on_delete=models.PROTECT,
                                   related_name="alerts")
     raw_message = models.ForeignKey("capagg_ingestion.RawMessage", on_delete=models.PROTECT,
@@ -94,6 +98,10 @@ class AlertDefect(models.Model):
     ERROR = "error"
     WARNING = "warning"
     SEVERITIES = ((ERROR, _("Error")), (WARNING, _("Warning")))
+
+    # Registering the snippet viewset would index every row's FKs in Wagtail's
+    # reference index — 2 GB in prod for a usage view nobody needs (#137).
+    wagtail_reference_index_ignore = True
 
     alert = models.ForeignKey(Alert, on_delete=models.CASCADE, related_name="defects")
     category = models.CharField(max_length=20, choices=categories.CATEGORY_CHOICES, db_index=True)

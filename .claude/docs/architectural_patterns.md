@@ -182,6 +182,11 @@ ownership handoff and a non-root dev fallback (`sources/mosquitto.py:55`).
   (`base.py:11`); DB via `DATABASE_URL` (`postgis://` scheme selects PostGIS).
 - Wagtail admin per app: models expose `panels`; `wagtail_hooks.py` registers a
   `SnippetViewSet`/`SnippetViewSetGroup` (`sources/wagtail_hooks.py`).
+- Registering a viewset enrols its model in Wagtail's reference index, which
+  then writes a row per FK on every save. Any register model with a many-to-one
+  FK sets `wagtail_reference_index_ignore = True` (`ingestion/models.py`
+  `SourceEvent`) — the index hit 2 GB in prod before this (#137).
+  `tests/test_reference_index.py` fails if a new register forgets.
 
 ## Geometry conventions
 

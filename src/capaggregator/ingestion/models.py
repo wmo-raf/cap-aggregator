@@ -29,6 +29,10 @@ class RawMessage(models.Model):
         ("failed", _("Failed")),
     )
 
+    # Registering the snippet viewset would index every row's FKs in Wagtail's
+    # reference index — 2 GB in prod for a usage view nobody needs (#137).
+    wagtail_reference_index_ignore = True
+
     authority = models.ForeignKey("capagg_sources.SourceAuthority", null=True, blank=True,
                                   on_delete=models.SET_NULL, related_name="raw_messages")
     transport = models.CharField(max_length=10, choices=TRANSPORTS)
@@ -251,6 +255,10 @@ class SourceEvent(models.Model):
     poll attempt (ok/failure), rejected webhook attempts, and MQTT consumer
     connect/disconnect events. Powers the health dashboard's red (poll failed) and
     faint-green (poll ok, no alerts) signals. Immutable, swept after 90 days."""
+
+    # Registering the snippet viewset would index every row's FKs in Wagtail's
+    # reference index — 2 GB in prod for a usage view nobody needs (#137).
+    wagtail_reference_index_ignore = True
 
     authority = models.ForeignKey(
         "capagg_sources.SourceAuthority", null=True, blank=True,
