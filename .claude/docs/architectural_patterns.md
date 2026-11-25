@@ -26,7 +26,9 @@ Tasks follow a fixed decorator + import discipline (documented at
 - `@shared_task(bind=True, acks_late=True)`; pipeline tasks (`ingest_raw_message`,
   `resolve_lineage`) add **limited autoretry for transient errors** — the shared
   `TRANSIENT_RETRY` options in `ingestion/tasks.py` (database `OperationalError`,
-  ~3 attempts, jittered 5–60s backoff). Safe because the pipeline is idempotent:
+  6 retries, un-jittered 5–60s backoff, ~3 min in all — the window must reliably
+  outlast a DB restart, because a message whose `RawMessage` row was never
+  written is invisible to the sweep). Safe because the pipeline is idempotent:
   re-execution of the same bytes resumes a mid-flight `RawMessage`, dedup
   short-circuits completed ones, and lineage resolution is a refresh. Validation
   and parse failures must never retry. The periodic **sweep** task remains the
