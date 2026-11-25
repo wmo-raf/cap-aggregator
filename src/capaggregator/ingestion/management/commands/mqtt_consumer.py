@@ -24,16 +24,31 @@ from django.core.management.base import BaseCommand
 logger = logging.getLogger(__name__)
 
 
+def record_connectivity(ok: bool, error: str = "") -> None:
+    """Record broker connectivity only when it changes state.
+
+    paho retries a failed connection every few seconds to a minute, and each
+    attempt fires on_connect(failed) + on_disconnect — recording every attempt
+    wrote ~2,900 rows/day during an outage. The health dashboard only needs the
+    newest state (and when it began), so an event is written only when it
+    differs from the latest recorded one; repeats still go to the log."""
+    from capaggregator.ingestion.models import SourceEvent
+
+    latest = (
+        SourceEvent.objects.filter(transport="mqtt", authority__isnull=True)
+        .order_by("-occurred_at", "-id")
+        .values_list("ok", flat=True)
+        .first()
+    )
+    if latest is None or latest != ok:
+        SourceEvent.objects.create(authority=None, transport="mqtt", ok=ok, error=error)
+
+
 def on_connect(client, userdata, flags, reason_code, properties=None):
     """paho on_connect: record broker connectivity (authority-null, global) and,
     on success, subscribe. reason_code 0 = connected."""
-    from capaggregator.ingestion.models import SourceEvent
-
     connected = reason_code == 0
-    SourceEvent.objects.create(
-        authority=None, transport="mqtt", ok=connected,
-        error="" if connected else f"connect failed: {reason_code}",
-    )
+    record_connectivity(ok=connected, error="" if connected else f"connect failed: {reason_code}")
     if connected:
         client.subscribe(settings.MQTT_IN_TOPIC, qos=1)
         logger.info("Subscribed to %s", settings.MQTT_IN_TOPIC)
@@ -44,9 +59,7 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
 def on_disconnect(client, userdata, *args):
     """paho on_disconnect: record the disconnect so the health dashboard can flag
     that push ingestion has stopped."""
-    from capaggregator.ingestion.models import SourceEvent
-
-    SourceEvent.objects.create(authority=None, transport="mqtt", ok=False, error="disconnected")
+    record_connectivity(ok=False, error="disconnected")
     logger.warning("MQTT consumer disconnected")
 
 

@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from django.conf import settings
 from django.core.cache import cache
 from django.db import models
@@ -7,15 +5,16 @@ from django.utils import timezone
 from wagtail.admin.panels import FieldPanel, MultiFieldPanel
 from wagtail.models import Page
 
+# "Operational" while the newest successful source contact is at most
+# OPERATIONAL_WINDOW old (shared with the polling-freshness alert)
+from capaggregator.ingestion.health import OPERATIONAL_WINDOW
+
 STATS_CACHE_KEY = "capagg-home-stats"
 STATS_CACHE_TTL = 60  # seconds — counts don't need to be per-request fresh
 VISIBLE_ALERTS_PER_AUTHORITY = 2
 
 # Worst-first; anything else ranks after Minor
 SEVERITY_ORDER = ("Extreme", "Severe", "Moderate", "Minor")
-
-# "Operational" while the newest successful source contact is at most this old
-OPERATIONAL_WINDOW = timedelta(minutes=15)
 
 
 def _severity_rank(severity):

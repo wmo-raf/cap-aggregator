@@ -21,6 +21,22 @@ from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 
+# Ingestion counts as healthy while the newest successful feed poll is at most
+# this old — shared by the homepage status line and the polling-freshness alert
+OPERATIONAL_WINDOW = timedelta(minutes=15)
+
+
+def last_successful_poll():
+    """occurred_at of the newest successful feed poll, or None if there has never been one."""
+    from .models import SourceEvent
+
+    return (
+        SourceEvent.objects.filter(transport="poll", ok=True)
+        .order_by("-occurred_at")
+        .values_list("occurred_at", flat=True)
+        .first()
+    )
+
 def mqtt_consumer_connected() -> bool:
     """Newest MQTT-consumer connectivity event (transport=mqtt, no authority):
     ok=True is a connect, ok=False a disconnect. Assumed connected until proven

@@ -10,6 +10,14 @@ cd /app/src
 /wait
 
 
+# Write the Mosquitto passwd/ACL on every start. The save-signal sync only fires
+# when an MQTT-enabled authority is saved, so without this a deployment with no
+# such authority never gets the consumer's own broker user and the consumer is
+# refused forever. Non-fatal: broker auth must never block the app from serving.
+sync_mosquitto_auth() {
+  capagg sync_mosquitto || echo "WARNING: Mosquitto auth sync failed — MQTT consumer may be refused" >&2
+}
+
 run_celery_worker() {
   local queue="$1" concurrency="$2" name="$3" pool="${4:-prefork}"
   exec celery -A capaggregator.config worker -Q "$queue" -c "$concurrency" -P "$pool" \
@@ -28,6 +36,7 @@ case "$1" in
 django-dev)
   capagg migrate --noinput
   capagg create_alerts_tile_function
+  sync_mosquitto_auth
   # Collect in dev too so nginx (WEB_PORT) can serve /static/ from the shared
   # mount; runserver still serves statics directly on APP_PORT via finders
   capagg collectstatic --noinput
@@ -36,6 +45,7 @@ django-dev)
 gunicorn)
   capagg migrate --noinput
   capagg create_alerts_tile_function
+  sync_mosquitto_auth
   capagg collectstatic --noinput
   exec gunicorn capaggregator.config.wsgi:application -b 0.0.0.0:8000 \
     -w "${GUNICORN_WORKERS:-4}" --timeout "${GUNICORN_TIMEOUT:-120}"
