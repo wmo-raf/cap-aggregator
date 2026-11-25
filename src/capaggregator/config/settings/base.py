@@ -272,6 +272,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "capaggregator.ingestion.tasks.check_polling_freshness",
         "schedule": 300,
     },
+    "check-ingestion-backlog": {
+        "task": "capaggregator.ingestion.tasks.check_ingestion_backlog",
+        "schedule": 300,
+    },
     "purge-old-source-events": {
         "task": "capaggregator.ingestion.tasks.purge_old_source_events",
         "schedule": 86400,
@@ -319,7 +323,7 @@ def parse_admins(value: str) -> list[tuple[str, str]]:
     return admins
 
 
-# Receives the polling-freshness alerts and Django's unhandled-500 reports
+# Receives the pipeline health alerts (ingestion/alerting.py) and Django's unhandled-500 reports
 ADMINS = parse_admins(env("ADMINS", default=""))
 
 # --- MQTT (aggregator's own broker) ---

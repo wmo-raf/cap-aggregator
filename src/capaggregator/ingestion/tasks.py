@@ -54,6 +54,12 @@ CAP_FETCH_POOL_SIZE = 10
 # outage can only fail the task itself. The hard time_limit (per task, below)
 # guards against genuinely stalled I/O; soft limits are not enforced by the
 # gevent pool, so only the hard limit is set.
+#
+# The prefork pool does not wedge this way, so its tasks keep storing results:
+# billiard catches the escaped exception in the child and the request completes
+# (reproduced against ingest_raw_message on the ingestion worker, #140; the
+# default worker runs the same pool). The escape is logged
+# as "Exception raised outside body" / "Pool callback raised exception".
 
 
 def run_pipeline(raw, transport: str | None = None, authority=None) -> dict:
@@ -253,6 +259,17 @@ def check_polling_freshness(self):
     """Every 5 min: email ADMINS when feed polling goes stale, a daily reminder
     while it stays stale, and once on recovery (logic in ingestion/alerting.py)."""
     from .alerting import check_polling_freshness as check
+
+    return check()
+
+
+@shared_task(bind=True, acks_late=True, ignore_result=True)
+def check_ingestion_backlog(self):
+    """Every 5 min: email ADMINS when fetched messages stop being processed —
+    queued work nobody consumes, or unfinished RawMessages / unresolved alerts
+    older than STALL_AFTER — with a daily reminder and a recovery mail (logic in
+    ingestion/alerting.py)."""
+    from .alerting import check_ingestion_backlog as check
 
     return check()
 

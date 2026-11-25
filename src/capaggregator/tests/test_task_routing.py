@@ -22,5 +22,10 @@ class TaskRoutingTests(SimpleTestCase):
         self.assertEqual(routed_queue("capaggregator.ingestion.tasks.ingest_raw_message"), "capagg-ingestion")
         self.assertEqual(routed_queue("capaggregator.alerts.tasks.resolve_lineage"), "capagg-ingestion")
 
+    def test_health_checks_do_not_depend_on_the_workers_they_watch(self):
+        """A dead ingestion or polling worker must not also silence the alert about it."""
+        for task in ("check_polling_freshness", "check_ingestion_backlog"):
+            self.assertEqual(routed_queue(f"capaggregator.ingestion.tasks.{task}"), "capagg-default")
+
     def test_unrouted_tasks_fall_through_to_the_default_queue(self):
         self.assertEqual(routed_queue("capaggregator.somewhere.tasks.some_future_task"), "capagg-default")
