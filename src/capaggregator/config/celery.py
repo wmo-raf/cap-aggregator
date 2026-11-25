@@ -13,11 +13,15 @@ app.autodiscover_tasks()
 #                      by the gevent polling worker — never route validation,
 #                      parsing, storage, or lineage work here
 #   capagg-ingestion — heavy pipeline work (validate/parse/resolve)
-#   capagg-default   — everything else (notifications, re-publication, metrics)
+#   capagg-default   — everything else (notifications, re-publication, metrics),
+#                      including the pipeline health checks: they must keep
+#                      running when the polling/ingestion workers they watch die
 # Exact-name entries must precede wildcards: Celery matches in declaration order.
 app.conf.task_routes = {
     "capaggregator.ingestion.tasks.poll_all_feeds": {"queue": "capagg-polling"},
     "capaggregator.ingestion.tasks.poll_feed": {"queue": "capagg-polling"},
+    "capaggregator.ingestion.tasks.check_polling_freshness": {"queue": "capagg-default"},
+    "capaggregator.ingestion.tasks.check_ingestion_backlog": {"queue": "capagg-default"},
     "capaggregator.ingestion.tasks.*": {"queue": "capagg-ingestion"},
     "capaggregator.alerts.tasks.*": {"queue": "capagg-ingestion"},
     "*": {"queue": "capagg-default"},

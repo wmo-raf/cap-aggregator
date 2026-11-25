@@ -39,7 +39,9 @@ Tasks follow a fixed decorator + import discipline (documented at
 - Queue routing is centralized in `config/celery.py:14`: poll tasks →
   `capagg-polling` (gevent worker, I/O only), ingestion/alerts tasks →
   `capagg-ingestion`, everything else → `capagg-default`. Don't set queues on
-  individual tasks.
+  individual tasks. Health-check tasks (`check_polling_freshness`,
+  `check_ingestion_backlog`) get exact routes to `capagg-default`, since a worker
+  that is down cannot run the check that reports it.
 - Reliability settings (`acks_late`, `reject_on_worker_lost`, `prefetch=1`) are
   global in `config/settings/base.py:198`.
 

@@ -1,16 +1,24 @@
-"""Operator alerting: email ADMINS when feed polling stops succeeding.
+"""Operator alerting: email ADMINS when the ingestion pipeline stops moving.
 
-The homepage "Last check" line is the only other place a polling outage shows,
-and in prod it went unread for 16 days while the polling worker was wedged.
-This turns the same signal (newest successful poll vs OPERATIONAL_WINDOW) into
-email, debounced so an outage produces three kinds of mail and no more:
+Two independent checks, each run every 5 minutes by its own beat task:
 
-- one **stale** alert when polling first goes stale,
-- a **reminder** every REMINDER_INTERVAL while it stays stale,
-- one **recovered** mail when a poll succeeds again.
+- **polling freshness** — no feed poll has succeeded within OPERATIONAL_WINDOW.
+  The homepage "Last check" line is the only other place this shows, and in
+  prod it went unread for 16 days while the polling worker was wedged.
+- **ingestion backlog** — fetched messages are not being processed: RawMessages
+  stuck in a non-terminal state, or stored alerts never lineage-resolved, for
+  longer than STALL_AFTER. Polls keep succeeding while the capagg-ingestion
+  worker is dead, so the freshness check cannot see this.
 
-The last notified state lives in the Django cache (Redis) so worker restarts do
-not re-alert. Called every 5 minutes by the `check_polling_freshness` task.
+Each is debounced so an outage produces three kinds of mail and no more:
+
+- one **stale** alert when the problem first appears,
+- a **reminder** every REMINDER_INTERVAL while it lasts,
+- one **recovered** mail when it clears.
+
+The last notified state lives in the Django cache (Redis), one key per check,
+so worker restarts do not re-alert. The check tasks route to capagg-default so
+they keep running when the workers they watch are down.
 
 Known limit: this runs on our own Celery/Redis/DB, so an outage of those (or of
 the host) cannot alert through it.
@@ -28,7 +36,15 @@ from .health import OPERATIONAL_WINDOW, last_successful_poll
 logger = logging.getLogger(__name__)
 
 STATE_CACHE_KEY = "capagg-polling-freshness"
+BACKLOG_CACHE_KEY = "capagg-ingestion-backlog"
 REMINDER_INTERVAL = timedelta(hours=24)
+
+# Unprocessed this long = stalled. Ingest autoretry gives up within ~3 min and
+# sweep_unprocessed re-enqueues anything older than 5 min every 5 min, so a
+# message still unfinished after 15 min has been through at least one sweep
+# and nobody is consuming it (or it fails every attempt).
+STALL_AFTER = timedelta(minutes=15)
+NON_TERMINAL_STATES = ("received", "validated")
 
 STALE = "stale"
 HEALTHY = "healthy"
@@ -54,30 +70,55 @@ def check_polling_freshness(now=None) -> str | None:
     last_ok = last_successful_poll()
     reference = last_ok or first_feed_added
     is_stale = now - reference > OPERATIONAL_WINDOW
-    previous = cache.get(STATE_CACHE_KEY) or {}
 
-    if is_stale:
+    return _notify(
+        STATE_CACHE_KEY, now,
+        stale_message=(lambda reminder: _stale_message(now, last_ok, reminder)) if is_stale else None,
+        recovered_message=lambda: _recovered_message(last_ok),
+    )
+
+
+def check_ingestion_backlog(now=None) -> str | None:
+    """Alert when fetched messages stop being processed (see module docstring).
+    Same return values and retry-on-send-failure as check_polling_freshness."""
+    now = now or timezone.now()
+    backlog = _ingestion_backlog(now - STALL_AFTER)
+    is_stale = backlog["raw"]["n"] or backlog["unresolved"]["n"]
+
+    return _notify(
+        BACKLOG_CACHE_KEY, now,
+        stale_message=(lambda reminder: _backlog_message(now, backlog, reminder)) if is_stale else None,
+        recovered_message=_backlog_recovered_message,
+    )
+
+
+def _notify(cache_key, now, stale_message, recovered_message) -> str | None:
+    """The debounce shared by every check. `stale_message` is None while healthy,
+    else a callable(reminder) -> (subject, body); `recovered_message` is a
+    callable() -> (subject, body). Sends at most one mail and records it under
+    `cache_key`; a failed send records nothing, so the next run retries it."""
+    previous = cache.get(cache_key) or {}
+
+    if stale_message is not None:
         if previous.get("state") != STALE:
             kind = "stale"
         elif now - previous["notified_at"] >= REMINDER_INTERVAL:
             kind = "reminder"
         else:
             return None
-        subject, body = _stale_message(now, last_ok, reminder=kind == "reminder")
-        if not _send(subject, body):
+        if not _send(*stale_message(kind == "reminder")):
             return None
-        cache.set(STATE_CACHE_KEY, {"state": STALE, "notified_at": now}, timeout=None)
+        cache.set(cache_key, {"state": STALE, "notified_at": now}, timeout=None)
         return kind
 
     if previous.get("state") == STALE:
-        subject, body = _recovered_message(last_ok)
-        if not _send(subject, body):
+        if not _send(*recovered_message()):
             return None
-        cache.set(STATE_CACHE_KEY, {"state": HEALTHY, "notified_at": now}, timeout=None)
+        cache.set(cache_key, {"state": HEALTHY, "notified_at": now}, timeout=None)
         return "recovered"
 
     if previous.get("state") != HEALTHY:
-        cache.set(STATE_CACHE_KEY, {"state": HEALTHY, "notified_at": None}, timeout=None)
+        cache.set(cache_key, {"state": HEALTHY, "notified_at": None}, timeout=None)
     return None
 
 
@@ -85,9 +126,9 @@ def _send(subject, body) -> bool:
     try:
         mail_admins(subject, body, fail_silently=False)
     except Exception:
-        logger.exception("Polling-freshness alert could not be sent: %s", subject)
+        logger.exception("Operator alert could not be sent: %s", subject)
         return False
-    logger.warning("Polling-freshness alert sent: %s", subject)
+    logger.warning("Operator alert sent: %s", subject)
     return True
 
 
@@ -135,6 +176,73 @@ def _recovered_message(last_ok):
     subject = "Recovered: feed polling is succeeding again"
     body = f"A feed poll succeeded at {last_ok:%Y-%m-%d %H:%M} UTC. Ingestion via polling has resumed.\n"
     return subject, body
+
+
+def _ingestion_backlog(cutoff) -> dict:
+    """Count and age of work unfinished since before `cutoff`: raw messages in a
+    non-terminal state, and stored alerts with no event chain yet."""
+    from django.db.models import Count, Min
+
+    from capaggregator.alerts.models import Alert
+
+    from .models import RawMessage
+
+    stuck = RawMessage.objects.filter(state__in=NON_TERMINAL_STATES, received_at__lt=cutoff)
+    unresolved = Alert.objects.filter(chain__isnull=True, created__lt=cutoff)
+    return {
+        "raw": stuck.aggregate(n=Count("id"), oldest=Min("received_at")),
+        "raw_ids": list(stuck.order_by("received_at").values_list("id", flat=True)[:10]),
+        "unresolved": unresolved.aggregate(n=Count("id"), oldest=Min("created")),
+    }
+
+
+def _backlog_message(now, backlog, reminder: bool):
+    raw, unresolved = backlog["raw"], backlog["unresolved"]
+    oldest = min(t for t in (raw["oldest"], unresolved["oldest"]) if t is not None)
+
+    lines = []
+    if raw["n"]:
+        lines.append(
+            f"- {_n(raw['n'], 'received message')} not processed (state received/validated), oldest "
+            f"{raw['oldest']:%Y-%m-%d %H:%M} UTC. Oldest RawMessage ids: "
+            + ", ".join(str(i) for i in backlog["raw_ids"])
+        )
+    if unresolved["n"]:
+        lines.append(
+            f"- {_n(unresolved['n'], 'stored alert')} not lineage-resolved, oldest "
+            f"{unresolved['oldest']:%Y-%m-%d %H:%M} UTC. They are missing from the map, API and feeds."
+        )
+
+    stalled = " and ".join(
+        part for part in (
+            _n(raw["n"], "message") if raw["n"] else "",
+            _n(unresolved["n"], "unresolved alert") if unresolved["n"] else "",
+        ) if part
+    )
+    prefix = "Still stalled" if reminder else "Stalled"
+    subject = f"{prefix}: ingestion backlog of {stalled}, oldest {_ago(now - oldest)} old"
+    body = (
+        f"Work fetched by the aggregator has not been processed for over {_ago(STALL_AFTER)}.\n\n"
+        + "\n".join(lines)
+        + "\n\n"
+        "sweep_unprocessed re-enqueues this work every 5 min, so a backlog this old usually means "
+        "nothing is consuming the capagg-ingestion queue: check the capagg-worker-ingestion container "
+        "(dead, wedged, or crash-looping) and the broker. If the worker is busy with other messages, "
+        "the listed ones are probably failing on every attempt: search its logs for their ids.\n\n"
+        f"You will get a reminder every {_ago(REMINDER_INTERVAL)} while this lasts, "
+        "and one email when the backlog clears.\n"
+    )
+    return subject, body
+
+
+def _backlog_recovered_message():
+    subject = "Recovered: ingestion backlog cleared"
+    body = "No received message or stored alert is waiting longer than expected. Ingestion is processing again.\n"
+    return subject, body
+
+
+def _n(count: int, noun: str) -> str:
+    return f"{count} {noun}{'' if count == 1 else 's'}"
 
 
 def _ago(delta: timedelta) -> str:
