@@ -55,9 +55,10 @@ CAP_FETCH_POOL_SIZE = 10
 # guards against genuinely stalled I/O; soft limits are not enforced by the
 # gevent pool, so only the hard limit is set.
 #
-# The prefork workers (ingestion, default) do not wedge this way and keep storing
-# results: billiard catches the escaped exception in the child and the request
-# completes (reproduced against ingest_raw_message, #140). The escape is logged
+# The prefork pool does not wedge this way, so its tasks keep storing results:
+# billiard catches the escaped exception in the child and the request completes
+# (reproduced against ingest_raw_message on the ingestion worker, #140; the
+# default worker runs the same pool). The escape is logged
 # as "Exception raised outside body" / "Pool callback raised exception".
 
 
@@ -265,8 +266,9 @@ def check_polling_freshness(self):
 @shared_task(bind=True, acks_late=True, ignore_result=True)
 def check_ingestion_backlog(self):
     """Every 5 min: email ADMINS when fetched messages stop being processed —
-    unfinished RawMessages or unresolved alerts older than STALL_AFTER — with a
-    daily reminder and a recovery mail (logic in ingestion/alerting.py)."""
+    queued work nobody consumes, or unfinished RawMessages / unresolved alerts
+    older than STALL_AFTER — with a daily reminder and a recovery mail (logic in
+    ingestion/alerting.py)."""
     from .alerting import check_ingestion_backlog as check
 
     return check()
